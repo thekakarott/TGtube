@@ -45,20 +45,26 @@ class Player(GObject.Object):
         try:
             import mpv
             import shutil
+            import sys
+            import os
             
-            # Check if yt-dlp is available
-            ytdlp_path = shutil.which("yt-dlp")
+            # Prefer the yt-dlp binary installed into the current Python environment.
+            venv_ytdlp = os.path.join(os.path.dirname(sys.executable), "yt-dlp")
+            ytdlp_path = venv_ytdlp if os.path.exists(venv_ytdlp) else shutil.which("yt-dlp")
             print(f"[player] yt-dlp available: {ytdlp_path}")
-            
+
+            if ytdlp_path:
+                os.environ["PATH"] = os.pathsep.join([os.path.dirname(ytdlp_path), os.environ.get("PATH", "")])
+
             self._mpv = mpv.MPV(
                 ytdl=True,
-                ytdl_format="bestaudio[ext=webm]/bestaudio/best",
+                ytdl_format="bestaudio/best",
                 video=False,
                 terminal=False,
                 quiet=False,
                 input_default_bindings=False,
             )
-            self._mpv["ytdl-raw-options"] = "yes-playlist="
+            self._mpv["ytdl-raw-options"] = {"js-runtimes": "node", "yes-playlist": ""}
 
             @self._mpv.event_callback("file-loaded")
             def _on_file_loaded():

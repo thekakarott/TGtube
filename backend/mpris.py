@@ -3,8 +3,13 @@ GTube — backend/mpris.py
 MPRIS2 D-Bus service so media keys, playerctl, and polybar work.
 Runs in its own GLib main context thread to avoid blocking GTK.
 """
+import re
 import threading
 from gi.repository import GLib
+
+
+def _sanitize_track_id(vid: str) -> str:
+    return re.sub(r'[^A-Za-z0-9_]', '_', vid)
 
 
 MPRIS_XML = """
@@ -81,8 +86,9 @@ class MPRISService:
             print(f"[mpris] D-Bus error: {e}")
 
     def _on_track_changed(self, player, vid, title, artist, thumb):
+        track_id = _sanitize_track_id(vid)
         self._metadata = {
-            "mpris:trackid": GLib.Variant("o", f"/com/gtube/track/{vid}"),
+            "mpris:trackid": GLib.Variant("o", f"/com/gtube/track/{track_id}"),
             "xesam:title": GLib.Variant("s", title),
             "xesam:artist": GLib.Variant("as", [artist]),
             "mpris:artUrl": GLib.Variant("s", thumb),

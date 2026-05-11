@@ -1,0 +1,288 @@
+/* GTube — Gruvbox Dark Theme for GTK4 / Libadwaita */
+
+/* ── Colour tokens ─────────────────────────────── */
+@define-color accent_bg_color       #d79921;
+@define-color accent_color          #fabd2f;
+@define-color accent_fg_color       #282828;
+@define-color destructive_bg_color  #cc241d;
+@define-color destructive_color     #fb4934;
+@define-color window_bg_color       #282828;
+@define-color window_fg_color       #ebdbb2;
+@define-color view_bg_color         #1d2021;
+@define-color view_fg_color         #ebdbb2;
+@define-color headerbar_bg_color    #1d2021;
+@define-color headerbar_fg_color    #ebdbb2;
+@define-color headerbar_border_color #3c3836;
+@define-color sidebar_bg_color      #32302f;
+@define-color sidebar_fg_color      #ebdbb2;
+@define-color card_bg_color         #3c3836;
+@define-color card_fg_color         #ebdbb2;
+@define-color popover_bg_color      #3c3836;
+@define-color popover_fg_color      #ebdbb2;
+@define-color shade_color           rgba(0,0,0,0.35);
+@define-color scrollbar_outline_color transparent;
+
+/* ── Global ─────────────────────────────────────── */
+* { font-family: "JetBrains Mono", "Inter", monospace; }
+
+window,
+.background { background-color: #282828; color: #ebdbb2; }
+
+/* ── Header bar ──────────────────────────────────── */
+headerbar {
+    background-color: #1d2021;
+    color: #ebdbb2;
+    border-bottom: 1px solid #3c3836;
+    box-shadow: none;
+}
+headerbar .title { font-weight: 700; font-size: 15px; color: #fabd2f; }
+headerbar button {
+    background: transparent;
+    color: #a89984;
+    border: none;
+    border-radius: 6px;
+}
+headerbar button:hover { background-color: #3c3836; color: #ebdbb2; }
+
+/* ── Sidebar ─────────────────────────────────────── */
+#sidebar {
+    background-color: #32302f;
+    border-right: 1px solid #3c3836;
+    min-width: 200px;
+}
+#sidebar button {
+    background: transparent;
+    color: #a89984;
+    border: none;
+    border-radius: 8px;
+    margin: 2px 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    transition: all 150ms ease;
+}
+#sidebar button:hover {
+    background-color: #3c3836;
+    color: #ebdbb2;
+}
+#sidebar button.active {
+    background-color: #d79921;
+    color: #282828;
+    font-weight: 700;
+}
+#sidebar .logo-label {
+    font-size: 20px;
+    font-weight: 900;
+    color: #fabd2f;
+    padding: 16px 16px 8px 16px;
+}
+
+/* ── Content area ────────────────────────────────── */
+scrolledwindow { background-color: transparent; }
+viewport { background-color: transparent; }
+
+/* ── Section headers ─────────────────────────────── */
+.section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #ebdbb2;
+    padding: 16px 16px 8px 16px;
+}
+
+/* ── Music cards ─────────────────────────────────── */
+.music-card {
+    background-color: #3c3836;
+    border-radius: 10px;
+    padding: 10px;
+    margin: 6px;
+    transition: background-color 120ms ease, transform 120ms ease;
+    border: 1px solid transparent;
+}
+.music-card:hover {
+    background-color: #504945;
+    border-color: #d79921;
+    transform: translateY(-2px);
+}
+.music-card .card-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #ebdbb2;
+}
+.music-card .card-subtitle {
+    font-size: 11px;
+    color: #a89984;
+}
+.music-card image {
+    border-radius: 6px;
+}
+
+/* ── Track row (in lists) ────────────────────────── */
+.track-row {
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin: 2px 8px;
+    transition: background-color 100ms ease;
+}
+.track-row:hover { background-color: #3c3836; }
+.track-row.playing { background-color: rgba(215, 153, 33, 0.18); }
+.track-row .track-title { font-size: 13px; color: #ebdbb2; font-weight: 600; }
+.track-row .track-artist { font-size: 12px; color: #928374; }
+.track-row .track-duration { font-size: 11px; color: #7c6f64; }
+
+/* ── Search bar ──────────────────────────────────── */
+searchentry {
+    background-color: #3c3836;
+    color: #ebdbb2;
+    border: 1px solid #504945;
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 14px;
+    caret-color: #fabd2f;
+}
+searchentry:focus {
+    border-color: #d79921;
+    box-shadow: 0 0 0 2px rgba(215, 153, 33, 0.25);
+}
+
+/* ── Now Playing Bar ─────────────────────────────── */
+#now-playing-bar {
+    background-color: #1d2021;
+    border-top: 1px solid #3c3836;
+    padding: 8px 16px;
+    min-height: 72px;
+}
+#now-playing-bar .track-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #ebdbb2;
+}
+#now-playing-bar .track-artist {
+    font-size: 12px;
+    color: #928374;
+}
+#now-playing-bar .control-btn {
+    background: transparent;
+    color: #a89984;
+    border: none;
+    border-radius: 50%;
+    min-width: 36px;
+    min-height: 36px;
+    padding: 6px;
+    transition: all 120ms ease;
+}
+#now-playing-bar .control-btn:hover {
+    background-color: #3c3836;
+    color: #ebdbb2;
+}
+#now-playing-bar .play-btn {
+    background-color: #d79921;
+    color: #282828;
+    border-radius: 50%;
+    min-width: 42px;
+    min-height: 42px;
+    padding: 8px;
+}
+#now-playing-bar .play-btn:hover { background-color: #fabd2f; }
+
+/* Progress slider */
+#now-playing-bar scale {
+    color: #d79921;
+}
+#now-playing-bar scale trough {
+    background-color: #3c3836;
+    border-radius: 4px;
+    min-height: 4px;
+}
+#now-playing-bar scale highlight {
+    background-color: #d79921;
+    border-radius: 4px;
+}
+#now-playing-bar scale slider {
+    background-color: #fabd2f;
+    min-width: 12px;
+    min-height: 12px;
+    border-radius: 50%;
+    border: none;
+    box-shadow: none;
+}
+
+/* ── Now Playing Full ────────────────────────────── */
+#now-playing-full {
+    background-color: #1d2021;
+}
+#now-playing-full .big-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: #ebdbb2;
+}
+#now-playing-full .big-artist {
+    font-size: 15px;
+    color: #a89984;
+}
+
+/* ── Lyrics ──────────────────────────────────────── */
+#lyrics-view {
+    background-color: #282828;
+    padding: 16px;
+}
+#lyrics-view .lyric-line {
+    font-size: 14px;
+    color: #7c6f64;
+    padding: 4px 0;
+    transition: color 200ms;
+}
+#lyrics-view .lyric-line.active {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fabd2f;
+}
+
+/* ── Scrollbars ──────────────────────────────────── */
+scrollbar {
+    background-color: transparent;
+    border: none;
+}
+scrollbar slider {
+    background-color: #504945;
+    border-radius: 4px;
+    min-width: 6px;
+    min-height: 6px;
+}
+scrollbar slider:hover { background-color: #665c54; }
+
+/* ── Buttons generic ─────────────────────────────── */
+button.suggested-action {
+    background-color: #d79921;
+    color: #282828;
+    border-radius: 8px;
+    font-weight: 700;
+}
+button.suggested-action:hover { background-color: #fabd2f; }
+
+/* ── Tab bar ─────────────────────────────────────── */
+tabbar tab {
+    background: transparent;
+    color: #928374;
+    font-size: 13px;
+    padding: 6px 16px;
+    border-radius: 8px 8px 0 0;
+}
+tabbar tab:checked {
+    background-color: #3c3836;
+    color: #fabd2f;
+    font-weight: 700;
+    border-bottom: 2px solid #d79921;
+}
+
+/* ── Status page (empty states) ──────────────────── */
+statuspage .icon { color: #504945; }
+statuspage .title { color: #7c6f64; }
+
+/* ── Spinner ─────────────────────────────────────── */
+spinner { color: #d79921; }
+
+/* ── Toast ───────────────────────────────────────── */
+toast {
+    background-color: #3c3836;
+    color: #ebdbb2;
+    border-radius: 8px;
+}

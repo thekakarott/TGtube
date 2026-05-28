@@ -86,14 +86,10 @@ class NowPlayingBar(Gtk.Box):
         self._progress.set_value(0)
         self._progress.set_hexpand(True)
         self._progress.set_draw_value(False)
-        self._progress.set_sensitive(False)
+        self._progress.set_sensitive(True)  # Enable slider immediately
         
-        # GTK4 uses gesture controllers instead of event signals
-        click_gesture = Gtk.GestureClick.new()
-        click_gesture.set_button(0)  # All buttons
-        click_gesture.connect("pressed", lambda *_: setattr(self, '_dragging', True))
-        click_gesture.connect("released", self._on_seek_release)
-        self._progress.add_controller(click_gesture)
+        # Connect to value-changed signal for seeking
+        self._progress.connect("change-value", self._on_seek_change)
         prog_row.append(self._progress)
 
         self._dur_label = Gtk.Label(label="0:00")
@@ -165,7 +161,10 @@ class NowPlayingBar(Gtk.Box):
             return
         if dur > 0:
             self._progress.set_range(0, dur)
+            # Block signal to prevent feedback loop
+            self._progress.handler_block_by_func(self._on_seek_change)
             self._progress.set_value(pos)
+            self._progress.handler_unblock_by_func(self._on_seek_change)
         self._pos_label.set_label(format_time(pos))
         self._dur_label.set_label(format_time(dur))
 
@@ -189,9 +188,12 @@ class NowPlayingBar(Gtk.Box):
     def _on_repeat(self, btn):
         self._player.cycle_repeat_mode()
 
-    def _on_seek_release(self, gesture):
+    def _on_seek_change(self, scale, scroll_type, value):
+        """Handle slider value changes for seeking."""
+        self._dragging = True
+        self._player.seek(value)
         self._dragging = False
-        self._player.seek(self._progress.get_value())
+        return False  # Allow default handler to run
 
     def _on_volume_changed(self, scale):
         self._player.set_volume(scale.get_value())

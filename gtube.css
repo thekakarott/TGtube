@@ -202,8 +202,9 @@ searchentry:focus {
 }
 #now-playing-bar scale slider {
     background-color: #fabd2f;
-    min-width: 12px;
-    min-height: 12px;
+    min-width: 16px;
+    min-height: 16px;
+    margin: 0;
     border-radius: 50%;
     border: none;
     box-shadow: none;

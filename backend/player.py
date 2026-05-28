@@ -103,13 +103,13 @@ class Player(GObject.Object):
             self._mpv["ytdl-raw-options"] = {"js-runtimes": "node", "yes-playlist": ""}
 
             @self._mpv.event_callback("file-loaded")
-            def _on_file_loaded():
+            def _on_file_loaded(event):
                 duration = self._mpv.duration or 0
                 pause = self._mpv.pause if self._mpv else None
                 print(f"[mpv] file-loaded: duration={duration}s, pause={pause}")
 
             @self._mpv.event_callback("playback-restart")
-            def _on_restart():
+            def _on_restart(event):
                 print(f"[mpv] playback-restart event")
 
             @self._mpv.event_callback("log-message")
@@ -222,24 +222,15 @@ class Player(GObject.Object):
                 self._mpv.play(url)
                 print(f"[player] [thread] mpv.play() returned")
                 
-                # Set a flag to track if file loaded successfully
-                file_loaded = False
-                
-                def on_file_loaded():
-                    nonlocal file_loaded
-                    file_loaded = True
-                    duration = self._mpv.duration or 0
-                    print(f"[player] [thread] SUCCESS: file loaded, duration={duration}s")
-                
-                # Add our success check callback
-                self._mpv.event_callback("file-loaded")(on_file_loaded)
-                
-                # Wait up to 5 seconds for file to load
+                # Wait for file to load (mpv will trigger file-loaded event)
                 import time
+                time.sleep(1)  # Give mpv time to start loading
+                
+                # Check if playback started successfully
                 for i in range(10):  # 10 * 0.5s = 5s
                     time.sleep(0.5)
-                    if file_loaded:
-                        print(f"[player] [thread] yt-dlp succeeded!")
+                    if self._mpv.duration and self._mpv.duration > 0:
+                        print(f"[player] [thread] yt-dlp succeeded! duration={self._mpv.duration}s")
                         return
                 
                 print(f"[player] [thread] yt-dlp failed to load file, trying ytmusicapi...")

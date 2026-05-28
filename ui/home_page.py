@@ -136,9 +136,14 @@ class HomePage(Gtk.ScrolledWindow):
             self._box.append(carousel)
 
     def _on_item_click(self, item):
+        print(f"[home] Item clicked: {item.get('title', 'Unknown')}")
+        print(f"[home] Item keys: {list(item.keys())}")
+        
         kind = item.get("resultType") or ""
         vid = item.get("videoId")
         browse = item.get("browseId") or (item.get("album") or {}).get("id")
+        
+        print(f"[home] videoId={vid}, browseId={browse}, resultType={kind}")
 
         if vid:
             # It's a playable track - build queue from current section
@@ -149,7 +154,11 @@ class HomePage(Gtk.ScrolledWindow):
                 if item in contents:
                     # Use all tracks from this section as queue
                     queue = [c for c in contents if c.get("videoId")]
+                    print(f"[home] Built queue with {len(queue)} tracks from section: {section.get('title', 'Unknown')}")
                     break
             self._player.play_track(item, queue=queue)
         elif browse:
+            print(f"[home] Navigating to album/playlist: {browse}")
             self._on_navigate("album", browse)
+        else:
+            print(f"[home] Item has no videoId or browseId - cannot play")

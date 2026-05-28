@@ -173,6 +173,10 @@ searchentry:focus {
     background-color: #3c3836;
     color: #ebdbb2;
 }
+#now-playing-bar .control-btn.active {
+    background-color: rgba(215, 153, 33, 0.25);
+    color: #fabd2f;
+}
 #now-playing-bar .play-btn {
     background-color: #d79921;
     color: #282828;

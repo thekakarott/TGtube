@@ -4,6 +4,7 @@ Audio engine wrapping python-mpv with GObject signals.
 All mpv callbacks are marshalled onto the GTK main loop via GLib.idle_add.
 """
 import threading
+import random
 from gi.repository import GObject, GLib
 
 
@@ -25,16 +26,25 @@ class Player(GObject.Object):
         "track-ended": (GObject.SignalFlags.RUN_FIRST, None, ()),
         # (error_message,)
         "error": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
+        # (repeat_mode: str) - "none", "one", "all"
+        "repeat-mode-changed": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
+        # (shuffle_enabled: bool)
+        "shuffle-changed": (GObject.SignalFlags.RUN_FIRST, None, (bool,)),
+        # queue was modified
+        "queue-changed": (GObject.SignalFlags.RUN_FIRST, None, ()),
     }
 
     def __init__(self):
         super().__init__()
         self._queue: list[dict] = []
+        self._original_queue: list[dict] = []  # Unshuffled queue
         self._index: int = -1
         self._current_track: dict = {}
         self._seeking = False
         self._mpv = None
         self._ytmusic = None  # Will be set later
+        self._repeat_mode: str = "none"  # "none", "one", "all"
+        self._shuffle_enabled: bool = False
         self._init_mpv()
 
     # ------------------------------------------------------------------
@@ -123,7 +133,25 @@ class Player(GObject.Object):
 
     def _on_track_ended(self):
         self.emit("track-ended")
-        self.next()
+        
+        # Handle repeat modes
+        if self._repeat_mode == "one":
+            # Replay the same track
+            self._start_playback(self._current_track)
+        elif self._repeat_mode == "all":
+            # Go to next track, loop back to start if at end
+            if self._index < len(self._queue) - 1:
+                self.next()
+            else:
+                # Loop back to start
+                self._index = 0
+                self._current_track = self._queue[0]
+                self._start_playback(self._current_track)
+        else:
+            # No repeat - just go to next if available
+            if self._index < len(self._queue) - 1:
+                self.next()
+            # else: stop at end of queue
 
     # ------------------------------------------------------------------
     # Public API
@@ -238,7 +266,112 @@ class Player(GObject.Object):
 
     def clear_queue(self):
         self._queue.clear()
+        self._original_queue.clear()
         self._index = -1
+        self.emit("queue-changed")
+
+    def add_to_queue(self, track: dict):
+        """Add track to end of queue."""
+        self._queue.append(track)
+        if self._shuffle_enabled:
+            self._original_queue.append(track)
+        self.emit("queue-changed")
+
+    def play_next(self, track: dict):
+        """Insert track after current position."""
+        insert_pos = self._index + 1
+        self._queue.insert(insert_pos, track)
+        if self._shuffle_enabled:
+            self._original_queue.insert(insert_pos, track)
+        self.emit("queue-changed")
+
+    def remove_from_queue(self, index: int):
+        """Remove track at index from queue."""
+        if 0 <= index < len(self._queue):
+            removed = self._queue.pop(index)
+            if self._shuffle_enabled and removed in self._original_queue:
+                self._original_queue.remove(removed)
+            # Adjust current index if needed
+            if index < self._index:
+                self._index -= 1
+            elif index == self._index:
+                # Removed current track, play next
+                if self._index < len(self._queue):
+                    self._current_track = self._queue[self._index]
+                    self._start_playback(self._current_track)
+            self.emit("queue-changed")
+
+    def reorder_queue(self, old_index: int, new_index: int):
+        """Move track from old_index to new_index."""
+        if 0 <= old_index < len(self._queue) and 0 <= new_index < len(self._queue):
+            track = self._queue.pop(old_index)
+            self._queue.insert(new_index, track)
+            # Adjust current index
+            if old_index == self._index:
+                self._index = new_index
+            elif old_index < self._index <= new_index:
+                self._index -= 1
+            elif new_index <= self._index < old_index:
+                self._index += 1
+            self.emit("queue-changed")
+
+    # ------------------------------------------------------------------
+    # Repeat & Shuffle
+    # ------------------------------------------------------------------
+
+    def set_repeat_mode(self, mode: str):
+        """Set repeat mode: 'none', 'one', or 'all'."""
+        if mode in ("none", "one", "all"):
+            self._repeat_mode = mode
+            print(f"[player] Repeat mode set to: {mode}")
+            self.emit("repeat-mode-changed", mode)
+
+    def get_repeat_mode(self) -> str:
+        return self._repeat_mode
+
+    def cycle_repeat_mode(self):
+        """Cycle through repeat modes: none → one → all → none."""
+        modes = ["none", "one", "all"]
+        current_idx = modes.index(self._repeat_mode)
+        next_mode = modes[(current_idx + 1) % len(modes)]
+        self.set_repeat_mode(next_mode)
+
+    def set_shuffle(self, enabled: bool):
+        """Enable or disable shuffle."""
+        if enabled == self._shuffle_enabled:
+            return
+        
+        self._shuffle_enabled = enabled
+        print(f"[player] Shuffle {'enabled' if enabled else 'disabled'}")
+        
+        if enabled:
+            # Save original queue order
+            self._original_queue = list(self._queue)
+            # Get current track
+            current = self._current_track if self._index >= 0 else None
+            # Shuffle queue
+            random.shuffle(self._queue)
+            # Move current track to front if playing
+            if current and current in self._queue:
+                self._queue.remove(current)
+                self._queue.insert(0, current)
+                self._index = 0
+        else:
+            # Restore original order
+            if self._original_queue:
+                current = self._current_track if self._index >= 0 else None
+                self._queue = list(self._original_queue)
+                # Find current track in restored queue
+                if current and current in self._queue:
+                    self._index = self._queue.index(current)
+                self._original_queue.clear()
+        
+        self.emit("shuffle-changed", enabled)
+        self.emit("queue-changed")
+
+    def toggle_shuffle(self):
+        """Toggle shuffle on/off."""
+        self.set_shuffle(not self._shuffle_enabled)
 
     # ------------------------------------------------------------------
     # Properties
@@ -275,3 +408,11 @@ class Player(GObject.Object):
     @property
     def queue(self) -> list[dict]:
         return self._queue
+
+    @property
+    def repeat_mode(self) -> str:
+        return self._repeat_mode
+
+    @property
+    def shuffle_enabled(self) -> bool:
+        return self._shuffle_enabled

@@ -8,7 +8,7 @@ from gi.repository import Gtk, GLib, GdkPixbuf, Pango
 
 
 class QueueRow(Gtk.Box):
-    def __init__(self, track: dict, index: int, on_play):
+    def __init__(self, track: dict, index: int, on_play, on_remove):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         self.add_css_class("track-row")
         self.set_margin_top(2)
@@ -49,6 +49,13 @@ class QueueRow(Gtk.Box):
         play.connect("clicked", lambda _: on_play(track))
         self.append(play)
 
+        # Remove button
+        remove = Gtk.Button()
+        remove.set_icon_name("user-trash-symbolic")
+        remove.add_css_class("control-btn")
+        remove.connect("clicked", lambda _: on_remove(index))
+        self.append(remove)
+
 
 class QueueView(Gtk.Box):
     def __init__(self, player):
@@ -56,12 +63,29 @@ class QueueView(Gtk.Box):
         self._player = player
         self._build()
         player.connect("track-changed", lambda *_: self._refresh())
+        player.connect("queue-changed", lambda *_: self._refresh())
 
     def _build(self):
+        # Header with title and clear button
+        hdr_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        hdr_box.set_margin_start(8)
+        hdr_box.set_margin_end(8)
+        hdr_box.set_margin_top(8)
+        hdr_box.set_margin_bottom(8)
+
         hdr = Gtk.Label(label="Queue")
         hdr.add_css_class("section-title")
         hdr.set_halign(Gtk.Align.START)
-        self.append(hdr)
+        hdr.set_hexpand(True)
+        hdr_box.append(hdr)
+
+        clear_btn = Gtk.Button()
+        clear_btn.set_label("Clear")
+        clear_btn.add_css_class("control-btn")
+        clear_btn.connect("clicked", lambda _: self._player.clear_queue())
+        hdr_box.append(clear_btn)
+
+        self.append(hdr_box)
 
         scroll = Gtk.ScrolledWindow()
         scroll.set_vexpand(True)
@@ -79,8 +103,11 @@ class QueueView(Gtk.Box):
             self._list_box.remove(child)
 
         for i, track in enumerate(self._player.queue):
-            row = QueueRow(track, i, self._play_track)
+            row = QueueRow(track, i, self._play_track, self._remove_track)
             self._list_box.append(row)
 
     def _play_track(self, track):
         self._player.play_track(track)
+
+    def _remove_track(self, index):
+        self._player.remove_from_queue(index)

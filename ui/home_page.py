@@ -100,6 +100,7 @@ class HomePage(Gtk.ScrolledWindow):
         self._ytmusic = ytmusic
         self._player = player
         self._on_navigate = on_navigate
+        self._sections = []  # Store sections for queue building
 
         self._box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
         self._box.set_margin_top(8)
@@ -138,6 +139,9 @@ class HomePage(Gtk.ScrolledWindow):
             self._box.append(lbl)
             return
 
+        # Store sections for queue building
+        self._sections = sections
+
         for section in sections:
             title = section.get("title", "")
             contents = section.get("contents", [])
@@ -152,7 +156,15 @@ class HomePage(Gtk.ScrolledWindow):
         browse = item.get("browseId") or (item.get("album") or {}).get("id")
 
         if vid:
-            # It's a playable track
-            self._player.play_track(item, queue=[item])
+            # It's a playable track - build queue from current section
+            # Find which section this item belongs to and use it as queue
+            queue = [item]  # Fallback to single item
+            for section in getattr(self, '_sections', []):
+                contents = section.get("contents", [])
+                if item in contents:
+                    # Use all tracks from this section as queue
+                    queue = [c for c in contents if c.get("videoId")]
+                    break
+            self._player.play_track(item, queue=queue)
         elif browse:
             self._on_navigate("album", browse)

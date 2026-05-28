@@ -81,13 +81,17 @@ class NowPlayingBar(Gtk.Box):
         btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         btn_row.set_halign(Gtk.Align.CENTER)
 
+        self._shuffle_btn = self._make_btn("media-playlist-shuffle-symbolic", "control-btn", self._on_shuffle)
         self._prev_btn = self._make_btn("media-skip-backward-symbolic", "control-btn", self._on_prev)
         self._play_btn = self._make_btn("media-playback-start-symbolic", "play-btn", self._on_play_pause)
         self._next_btn = self._make_btn("media-skip-forward-symbolic", "control-btn", self._on_next)
+        self._repeat_btn = self._make_btn("media-playlist-repeat-symbolic", "control-btn", self._on_repeat)
 
+        btn_row.append(self._shuffle_btn)
         btn_row.append(self._prev_btn)
         btn_row.append(self._play_btn)
         btn_row.append(self._next_btn)
+        btn_row.append(self._repeat_btn)
         center.append(btn_row)
 
         prog_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -154,6 +158,12 @@ class NowPlayingBar(Gtk.Box):
         p.connect("track-changed", self._on_track_changed)
         p.connect("position-changed", self._on_position_changed)
         p.connect("state-changed", self._on_state_changed)
+        p.connect("repeat-mode-changed", self._on_repeat_mode_changed)
+        p.connect("shuffle-changed", self._on_shuffle_changed)
+        
+        # Initialize button states
+        self._update_repeat_button()
+        self._update_shuffle_button()
 
     def _on_track_changed(self, player, vid, title, artist, thumb):
         self._title_label.set_label(title or "Unknown")
@@ -193,6 +203,12 @@ class NowPlayingBar(Gtk.Box):
     def _on_next(self, btn):
         self._player.next()
 
+    def _on_shuffle(self, btn):
+        self._player.toggle_shuffle()
+
+    def _on_repeat(self, btn):
+        self._player.cycle_repeat_mode()
+
     def _on_seek_release(self, gesture):
         self._dragging = False
         self._player.seek(self._progress.get_value())
@@ -203,3 +219,29 @@ class NowPlayingBar(Gtk.Box):
     def _on_expand_clicked(self, btn):
         if self._on_expand:
             self._on_expand()
+
+    def _on_repeat_mode_changed(self, player, mode):
+        self._update_repeat_button()
+
+    def _on_shuffle_changed(self, player, enabled):
+        self._update_shuffle_button()
+
+    def _update_repeat_button(self):
+        """Update repeat button icon based on mode."""
+        mode = self._player.repeat_mode
+        if mode == "one":
+            self._repeat_btn.set_icon_name("media-playlist-repeat-song-symbolic")
+            self._repeat_btn.add_css_class("active")
+        elif mode == "all":
+            self._repeat_btn.set_icon_name("media-playlist-repeat-symbolic")
+            self._repeat_btn.add_css_class("active")
+        else:  # none
+            self._repeat_btn.set_icon_name("media-playlist-repeat-symbolic")
+            self._repeat_btn.remove_css_class("active")
+
+    def _update_shuffle_button(self):
+        """Update shuffle button state."""
+        if self._player.shuffle_enabled:
+            self._shuffle_btn.add_css_class("active")
+        else:
+            self._shuffle_btn.remove_css_class("active")

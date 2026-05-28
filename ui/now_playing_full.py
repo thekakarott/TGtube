@@ -119,13 +119,17 @@ class NowPlayingFull(Gtk.Box):
         ctrl = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         ctrl.set_halign(Gtk.Align.CENTER)
 
+        self._shuffle = self._mkbtn("media-playlist-shuffle-symbolic", "control-btn", lambda _: self._player.toggle_shuffle())
         self._prev = self._mkbtn("media-skip-backward-symbolic", "control-btn", lambda _: self._player.prev())
         self._play = self._mkbtn("media-playback-start-symbolic", "play-btn", lambda _: self._player.play_pause())
         self._next = self._mkbtn("media-skip-forward-symbolic", "control-btn", lambda _: self._player.next())
+        self._repeat = self._mkbtn("media-playlist-repeat-symbolic", "control-btn", lambda _: self._player.cycle_repeat_mode())
 
+        ctrl.append(self._shuffle)
         ctrl.append(self._prev)
         ctrl.append(self._play)
         ctrl.append(self._next)
+        ctrl.append(self._repeat)
         left.append(ctrl)
 
         # ── Right panel: lyrics ─────────────────────────────────────────
@@ -157,6 +161,12 @@ class NowPlayingFull(Gtk.Box):
         self._player.connect("track-changed", self._on_track)
         self._player.connect("position-changed", self._on_pos)
         self._player.connect("state-changed", self._on_state)
+        self._player.connect("repeat-mode-changed", self._on_repeat_mode_changed)
+        self._player.connect("shuffle-changed", self._on_shuffle_changed)
+        
+        # Initialize button states
+        self._update_repeat_button()
+        self._update_shuffle_button()
 
     def _on_track(self, player, vid, title, artist, thumb):
         self._current_vid = vid
@@ -205,3 +215,29 @@ class NowPlayingFull(Gtk.Box):
     def _on_seek_release(self, gesture):
         self._dragging = False
         self._player.seek(self._seek.get_value())
+
+    def _on_repeat_mode_changed(self, player, mode):
+        self._update_repeat_button()
+
+    def _on_shuffle_changed(self, player, enabled):
+        self._update_shuffle_button()
+
+    def _update_repeat_button(self):
+        """Update repeat button icon based on mode."""
+        mode = self._player.repeat_mode
+        if mode == "one":
+            self._repeat.set_icon_name("media-playlist-repeat-song-symbolic")
+            self._repeat.add_css_class("active")
+        elif mode == "all":
+            self._repeat.set_icon_name("media-playlist-repeat-symbolic")
+            self._repeat.add_css_class("active")
+        else:  # none
+            self._repeat.set_icon_name("media-playlist-repeat-symbolic")
+            self._repeat.remove_css_class("active")
+
+    def _update_shuffle_button(self):
+        """Update shuffle button state."""
+        if self._player.shuffle_enabled:
+            self._shuffle.add_css_class("active")
+        else:
+            self._shuffle.remove_css_class("active")

@@ -135,6 +135,7 @@ class SearchPage(Gtk.Box):
         self._player = player
         self._on_navigate = on_navigate
         self._results = {}
+        self._current_songs = []  # Store current song results for queue
         self._build()
 
     def _build(self):
@@ -206,8 +207,9 @@ class SearchPage(Gtk.Box):
         GLib.idle_add(self._render, results)
 
     def _render(self, results):
-        # Songs
+        # Songs - store for queue building
         songs = results.get("songs", [])
+        self._current_songs = songs
         if songs:
             lst = _make_list(songs, lambda t: TrackRow(t, self._play_track))
             self._tab_scrolls["songs"].set_child(lst)
@@ -248,7 +250,9 @@ class SearchPage(Gtk.Box):
         self._tab_scrolls[key].set_child(lbl)
 
     def _play_track(self, track):
-        self._player.play_track(track, queue=[track])
+        # Use all search results as queue for better experience
+        queue = self._current_songs if self._current_songs else [track]
+        self._player.play_track(track, queue=queue)
 
     def _on_album_click(self, item):
         bid = item.get("browseId")

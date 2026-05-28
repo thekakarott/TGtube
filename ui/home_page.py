@@ -233,12 +233,58 @@ class HomePage(Gtk.ScrolledWindow):
             traceback.print_exc()
     
     def _handle_playlist_click(self, item, playlist_id):
-        """Handle click on playlist."""
+        """Handle click on playlist - load tracks and play first one."""
         try:
             print(f"[home] Loading playlist: {playlist_id}")
-            # TODO: Implement playlist loading
-            print(f"[home] WARNING: Playlist loading not yet implemented")
+            
+            # Show loading state (TODO: add visual spinner)
+            print(f"[home] Fetching playlist tracks...")
+            
+            # Fetch playlist tracks
+            self._ytmusic.get_playlist(playlist_id, self._on_playlist_loaded)
+            
         except Exception as e:
             print(f"[home] ERROR handling playlist: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _on_playlist_loaded(self, playlist_data, error):
+        """Handle playlist data loaded from API."""
+        try:
+            if error:
+                print(f"[home] ERROR loading playlist: {error}")
+                return
+            
+            if not playlist_data:
+                print(f"[home] ERROR: No playlist data received")
+                return
+            
+            # Extract tracks from playlist
+            tracks = playlist_data.get("tracks", [])
+            if not tracks:
+                print(f"[home] WARNING: Playlist has no tracks")
+                return
+            
+            print(f"[home] Playlist loaded: {len(tracks)} tracks")
+            print(f"[home] Playlist title: {playlist_data.get('title', 'Unknown')}")
+            
+            # Filter to only playable tracks (those with videoId)
+            playable_tracks = [t for t in tracks if t.get("videoId")]
+            
+            if not playable_tracks:
+                print(f"[home] ERROR: No playable tracks in playlist")
+                return
+            
+            print(f"[home] Found {len(playable_tracks)} playable tracks")
+            
+            # Play first track with full playlist as queue
+            first_track = playable_tracks[0]
+            print(f"[home] Playing first track: {first_track.get('title', 'Unknown')}")
+            
+            # Use GLib.idle_add to ensure we're on the main thread
+            GLib.idle_add(self._player.play_track, first_track, playable_tracks)
+            
+        except Exception as e:
+            print(f"[home] ERROR in _on_playlist_loaded: {e}")
             import traceback
             traceback.print_exc()

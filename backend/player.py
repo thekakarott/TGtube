@@ -158,26 +158,51 @@ class Player(GObject.Object):
         self.emit("position-changed", pos, dur)
 
     def _on_track_ended(self):
-        self.emit("track-ended")
-        
-        # Handle repeat modes
-        if self._repeat_mode == "one":
-            # Replay the same track
-            self._start_playback(self._current_track)
-        elif self._repeat_mode == "all":
-            # Go to next track, loop back to start if at end
-            if self._index < len(self._queue) - 1:
-                self.next()
-            else:
-                # Loop back to start
-                self._index = 0
-                self._current_track = self._queue[0]
-                self._start_playback(self._current_track)
-        else:
-            # No repeat - just go to next if available
-            if self._index < len(self._queue) - 1:
-                self.next()
-            # else: stop at end of queue
+        """Handle track end with robust repeat logic and error handling."""
+        try:
+            print(f"[player] Track ended. Repeat: {self._repeat_mode}, Queue: {len(self._queue)}, Index: {self._index}")
+            
+            self.emit("track-ended")
+            
+            if not self._current_track:
+                print("[player] WARNING: No current track, cannot handle repeat")
+                return
+            
+            if self._repeat_mode == "one":
+                # Replay the same track with small delay to ensure clean restart
+                print(f"[player] Repeat ONE - replaying: {self._current_track.get('title', 'Unknown')}")
+                GLib.timeout_add(100, lambda: self._start_playback(self._current_track) or False)
+                
+            elif self._repeat_mode == "all":
+                # Go to next track, loop back to start if at end
+                print(f"[player] Repeat ALL - current index: {self._index}/{len(self._queue)-1}")
+                if self._index < len(self._queue) - 1:
+                    print("[player] Advancing to next track")
+                    GLib.timeout_add(100, lambda: self.next() or False)
+                else:
+                    # Loop back to start
+                    print("[player] End of queue - looping to start")
+                    if self._queue:
+                        self._index = 0
+                        self._current_track = self._queue[0]
+                        GLib.timeout_add(100, lambda: self._start_playback(self._current_track) or False)
+                    else:
+                        print("[player] ERROR: Queue is empty, cannot loop")
+                        
+            else:  # none
+                # No repeat - just go to next if available
+                print(f"[player] No repeat - checking for next track")
+                if self._index < len(self._queue) - 1:
+                    print("[player] Advancing to next track")
+                    GLib.timeout_add(100, lambda: self.next() or False)
+                else:
+                    print("[player] End of queue - stopping playback")
+                    
+        except Exception as e:
+            print(f"[player] ERROR in _on_track_ended: {e}")
+            import traceback
+            traceback.print_exc()
+            GLib.idle_add(self.emit, "error", f"Playback error: {e}")
 
     # ------------------------------------------------------------------
     # Public API

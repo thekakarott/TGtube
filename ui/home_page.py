@@ -136,29 +136,109 @@ class HomePage(Gtk.ScrolledWindow):
             self._box.append(carousel)
 
     def _on_item_click(self, item):
-        print(f"[home] Item clicked: {item.get('title', 'Unknown')}")
-        print(f"[home] Item keys: {list(item.keys())}")
-        
-        kind = item.get("resultType") or ""
-        vid = item.get("videoId")
-        browse = item.get("browseId") or (item.get("album") or {}).get("id")
-        
-        print(f"[home] videoId={vid}, browseId={browse}, resultType={kind}")
-
-        if vid:
-            # It's a playable track - build queue from current section
-            # Find which section this item belongs to and use it as queue
-            queue = [item]  # Fallback to single item
-            for section in getattr(self, '_sections', []):
-                contents = section.get("contents", [])
-                if item in contents:
-                    # Use all tracks from this section as queue
-                    queue = [c for c in contents if c.get("videoId")]
-                    print(f"[home] Built queue with {len(queue)} tracks from section: {section.get('title', 'Unknown')}")
-                    break
+        """Handle item click with comprehensive error handling and logging."""
+        try:
+            title = item.get('title') or item.get('name') or 'Unknown'
+            print(f"\n[home] ===== Item Clicked =====")
+            print(f"[home] Title: {title}")
+            print(f"[home] Type: {item.get('resultType', 'unknown')}")
+            print(f"[home] Keys: {list(item.keys())}")
+            
+            # Extract all possible identifiers
+            vid = item.get("videoId")
+            browse_id = item.get("browseId")
+            playlist_id = item.get("playlistId")
+            album = item.get("album")
+            
+            print(f"[home] videoId: {vid}")
+            print(f"[home] browseId: {browse_id}")
+            print(f"[home] playlistId: {playlist_id}")
+            print(f"[home] album: {album}")
+            
+            if vid:
+                # It's a playable track
+                print(f"[home] Handling as playable track")
+                self._handle_track_click(item)
+            elif browse_id:
+                # It's an album, artist, or playlist
+                print(f"[home] Handling as browse item (album/artist/playlist)")
+                self._handle_browse_click(item, browse_id)
+            elif playlist_id:
+                # It's a playlist
+                print(f"[home] Handling as playlist")
+                self._handle_playlist_click(item, playlist_id)
+            elif album and isinstance(album, dict) and album.get("id"):
+                # Album nested in item
+                print(f"[home] Handling as nested album")
+                self._handle_browse_click(item, album["id"])
+            else:
+                print(f"[home] WARNING: Item has no playable content or browse ID")
+                print(f"[home] Full item data: {item}")
+                
+        except Exception as e:
+            print(f"[home] ERROR handling item click: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _handle_track_click(self, item):
+        """Handle click on a playable track."""
+        try:
+            # Build queue from current section using videoId comparison
+            queue = self._build_queue_for_item(item)
+            print(f"[home] Playing track with queue of {len(queue)} items")
             self._player.play_track(item, queue=queue)
-        elif browse:
-            print(f"[home] Navigating to album/playlist: {browse}")
-            self._on_navigate("album", browse)
-        else:
-            print(f"[home] Item has no videoId or browseId - cannot play")
+        except Exception as e:
+            print(f"[home] ERROR playing track: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _build_queue_for_item(self, item) -> list[dict]:
+        """Build queue for an item by finding its section.
+        
+        Uses videoId comparison instead of object identity to handle
+        different data structures across sections.
+        """
+        item_vid = item.get("videoId")
+        if not item_vid:
+            print(f"[home] No videoId for item, returning single-item queue")
+            return [item]
+        
+        print(f"[home] Looking for section containing videoId: {item_vid}")
+        
+        # Find the section containing this item
+        for section in getattr(self, '_sections', []):
+            section_title = section.get("title", "Unknown")
+            contents = section.get("contents", [])
+            
+            # Compare by videoId instead of object identity
+            for content in contents:
+                if content.get("videoId") == item_vid:
+                    # Found the section - build queue from all playable items
+                    queue = [c for c in contents if c.get("videoId")]
+                    print(f"[home] ✓ Found section '{section_title}': {len(queue)} playable tracks")
+                    return queue
+        
+        # Fallback to single item
+        print(f"[home] Could not find section for item, using single-item queue")
+        return [item]
+    
+    def _handle_browse_click(self, item, browse_id):
+        """Handle click on album/artist/playlist."""
+        try:
+            print(f"[home] Navigating to browse ID: {browse_id}")
+            self._on_navigate("album", browse_id)
+        except Exception as e:
+            print(f"[home] ERROR navigating to browse item: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _handle_playlist_click(self, item, playlist_id):
+        """Handle click on playlist."""
+        try:
+            print(f"[home] Loading playlist: {playlist_id}")
+            # TODO: Implement playlist loading
+            print(f"[home] WARNING: Playlist loading not yet implemented")
+        except Exception as e:
+            print(f"[home] ERROR handling playlist: {e}")
+            import traceback
+            traceback.print_exc()

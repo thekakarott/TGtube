@@ -2,28 +2,8 @@
 GTube — ui/now_playing_bar.py
 Persistent bottom bar showing current track + playback controls.
 """
-import threading
-import requests
-from gi.repository import Gtk, GLib, GdkPixbuf, Pango
-
-
-def _fmt_time(seconds: float) -> str:
-    s = int(seconds)
-    return f"{s // 60}:{s % 60:02d}"
-
-
-def _load_thumb_async(url: str, callback):
-    def fetch():
-        try:
-            resp = requests.get(url, timeout=8)
-            loader = GdkPixbuf.PixbufLoader()
-            loader.write(resp.content)
-            loader.close()
-            pb = loader.get_pixbuf().scale_simple(52, 52, GdkPixbuf.InterpType.BILINEAR)
-            GLib.idle_add(callback, pb)
-        except Exception:
-            GLib.idle_add(callback, None)
-    threading.Thread(target=fetch, daemon=True).start()
+from gi.repository import Gtk, GLib, Pango
+from ui.utils import load_thumbnail_async, format_time
 
 
 class NowPlayingBar(Gtk.Box):
@@ -170,7 +150,7 @@ class NowPlayingBar(Gtk.Box):
         self._artist_label.set_label(artist or "—")
         self._progress.set_sensitive(True)
         if thumb:
-            _load_thumb_async(thumb, self._set_art)
+            load_thumbnail_async(thumb, 52, self._set_art)
         else:
             self._art.set_from_icon_name("audio-x-generic")
 
@@ -186,8 +166,8 @@ class NowPlayingBar(Gtk.Box):
         if dur > 0:
             self._progress.set_range(0, dur)
             self._progress.set_value(pos)
-        self._pos_label.set_label(_fmt_time(pos))
-        self._dur_label.set_label(_fmt_time(dur))
+        self._pos_label.set_label(format_time(pos))
+        self._dur_label.set_label(format_time(dur))
 
     def _on_state_changed(self, player, is_playing):
         icon = "media-playback-pause-symbolic" if is_playing else "media-playback-start-symbolic"

@@ -2,29 +2,14 @@
 GTube — ui/search_page.py
 Search page: text entry + tabbed results (Songs / Albums / Artists / Playlists).
 """
-import threading
-import requests
-from gi.repository import Gtk, GLib, GdkPixbuf, Pango
+from gi.repository import Gtk, GLib, Pango
+from ui.utils import load_thumbnail_async
 
 
 def _best_thumb(thumbs, size=56):
     if not thumbs:
         return ""
     return thumbs[-1].get("url", "")
-
-
-def _load_thumb(url, image, size=56):
-    def fetch():
-        try:
-            resp = requests.get(url, timeout=6)
-            loader = GdkPixbuf.PixbufLoader()
-            loader.write(resp.content)
-            loader.close()
-            pb = loader.get_pixbuf().scale_simple(size, size, GdkPixbuf.InterpType.BILINEAR)
-            GLib.idle_add(image.set_from_pixbuf, pb)
-        except Exception:
-            pass
-    threading.Thread(target=fetch, daemon=True).start()
 
 
 class TrackRow(Gtk.Box):
@@ -39,7 +24,7 @@ class TrackRow(Gtk.Box):
 
         thumbs = track.get("thumbnails") or []
         if thumbs:
-            _load_thumb(thumbs[-1]["url"], img, 48)
+            load_thumbnail_async(thumbs[-1]["url"], 48, img.set_from_pixbuf)
 
         info = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         info.set_hexpand(True)
@@ -89,7 +74,7 @@ class CardRow(Gtk.Box):
 
         thumbs = item.get("thumbnails") or []
         if thumbs:
-            _load_thumb(thumbs[-1]["url"], img, 48)
+            load_thumbnail_async(thumbs[-1]["url"], 48, img.set_from_pixbuf)
 
         info = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         info.set_hexpand(True)

@@ -2,9 +2,8 @@
 GTube — ui/home_page.py
 Home feed with carousels of music cards (Quick Picks, New Releases, etc.)
 """
-import threading
-import requests
-from gi.repository import Gtk, GLib, GdkPixbuf, Pango
+from gi.repository import Gtk, GLib, Pango
+from ui.utils import load_thumbnail_async
 
 
 def _best_thumb(thumbs: list, size=120) -> str:
@@ -15,20 +14,6 @@ def _best_thumb(thumbs: list, size=120) -> str:
         if abs(t.get("width", 0) - size) < abs(best.get("width", 0) - size):
             best = t
     return best.get("url", "")
-
-
-def _load_thumb(url: str, image: Gtk.Image, size=120):
-    def fetch():
-        try:
-            resp = requests.get(url, timeout=8)
-            loader = GdkPixbuf.PixbufLoader()
-            loader.write(resp.content)
-            loader.close()
-            pb = loader.get_pixbuf().scale_simple(size, size, GdkPixbuf.InterpType.BILINEAR)
-            GLib.idle_add(image.set_from_pixbuf, pb)
-        except Exception:
-            pass
-    threading.Thread(target=fetch, daemon=True).start()
 
 
 class MusicCard(Gtk.Box):
@@ -46,7 +31,7 @@ class MusicCard(Gtk.Box):
         thumbs = item.get("thumbnails") or []
         url = _best_thumb(thumbs, 120)
         if url:
-            _load_thumb(url, img, 120)
+            load_thumbnail_async(url, 120, img.set_from_pixbuf)
 
         title = (item.get("title") or item.get("name") or "Unknown")[:30]
         t = Gtk.Label(label=title)

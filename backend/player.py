@@ -5,6 +5,7 @@ All mpv callbacks are marshalled onto the GTK main loop via GLib.idle_add.
 """
 import threading
 import random
+import re
 from gi.repository import GObject, GLib
 
 
@@ -45,11 +46,36 @@ class Player(GObject.Object):
         self._ytmusic = None  # Will be set later
         self._repeat_mode: str = "none"  # "none", "one", "all"
         self._shuffle_enabled: bool = False
+        self._queue_lock = threading.RLock()  # Thread-safe queue operations
         self._init_mpv()
 
     # ------------------------------------------------------------------
     # Private
     # ------------------------------------------------------------------
+
+    def _validate_video_id(self, vid: str) -> str:
+        """Validate and sanitize YouTube video ID.
+        
+        YouTube video IDs are exactly 11 characters long and contain only
+        alphanumeric characters, hyphens, and underscores.
+        
+        Args:
+            vid: Video ID to validate
+            
+        Returns:
+            Validated video ID
+            
+        Raises:
+            ValueError: If video ID is invalid or potentially malicious
+        """
+        if not vid or not isinstance(vid, str):
+            raise ValueError("Invalid video ID: must be a non-empty string")
+        
+        # YouTube video IDs are exactly 11 characters: [A-Za-z0-9_-]{11}
+        if not re.match(r'^[A-Za-z0-9_-]{11}$', vid):
+            raise ValueError(f"Invalid video ID format: '{vid}'. Must be 11 alphanumeric characters.")
+        
+        return vid
 
     def _init_mpv(self):
         try:
@@ -172,7 +198,14 @@ class Player(GObject.Object):
         self._start_playback(track)
 
     def _start_playback(self, track: dict):
-        vid = track.get("videoId", "")
+        # Validate video ID to prevent command injection
+        try:
+            vid = self._validate_video_id(track.get("videoId", ""))
+        except ValueError as e:
+            print(f"[player] Invalid video ID: {e}")
+            GLib.idle_add(self.emit, "error", f"Invalid video: {e}")
+            return
+        
         title = track.get("title", "Unknown")
         artists = track.get("artists") or []
         artist = artists[0].get("name", "") if artists else track.get("artist", "")
@@ -286,20 +319,21 @@ class Player(GObject.Object):
         self.emit("queue-changed")
 
     def remove_from_queue(self, index: int):
-        """Remove track at index from queue."""
-        if 0 <= index < len(self._queue):
-            removed = self._queue.pop(index)
-            if self._shuffle_enabled and removed in self._original_queue:
-                self._original_queue.remove(removed)
-            # Adjust current index if needed
-            if index < self._index:
-                self._index -= 1
-            elif index == self._index:
-                # Removed current track, play next
-                if self._index < len(self._queue):
-                    self._current_track = self._queue[self._index]
-                    self._start_playback(self._current_track)
-            self.emit("queue-changed")
+        """Remove track at index from queue (thread-safe)."""
+        with self._queue_lock:
+            if 0 <= index < len(self._queue):
+                removed = self._queue.pop(index)
+                if self._shuffle_enabled and removed in self._original_queue:
+                    self._original_queue.remove(removed)
+                # Adjust current index if needed
+                if index < self._index:
+                    self._index -= 1
+                elif index == self._index:
+                    # Removed current track, play next
+                    if self._index < len(self._queue):
+                        self._current_track = self._queue[self._index]
+                        self._start_playback(self._current_track)
+                self.emit("queue-changed")
 
     def reorder_queue(self, old_index: int, new_index: int):
         """Move track from old_index to new_index."""
@@ -337,37 +371,38 @@ class Player(GObject.Object):
         self.set_repeat_mode(next_mode)
 
     def set_shuffle(self, enabled: bool):
-        """Enable or disable shuffle."""
-        if enabled == self._shuffle_enabled:
-            return
-        
-        self._shuffle_enabled = enabled
-        print(f"[player] Shuffle {'enabled' if enabled else 'disabled'}")
-        
-        if enabled:
-            # Save original queue order
-            self._original_queue = list(self._queue)
-            # Get current track
-            current = self._current_track if self._index >= 0 else None
-            # Shuffle queue
-            random.shuffle(self._queue)
-            # Move current track to front if playing
-            if current and current in self._queue:
-                self._queue.remove(current)
-                self._queue.insert(0, current)
-                self._index = 0
-        else:
-            # Restore original order
-            if self._original_queue:
+        """Enable or disable shuffle (thread-safe)."""
+        with self._queue_lock:
+            if enabled == self._shuffle_enabled:
+                return
+            
+            self._shuffle_enabled = enabled
+            print(f"[player] Shuffle {'enabled' if enabled else 'disabled'}")
+            
+            if enabled:
+                # Save original queue order
+                self._original_queue = list(self._queue)
+                # Get current track
                 current = self._current_track if self._index >= 0 else None
-                self._queue = list(self._original_queue)
-                # Find current track in restored queue
+                # Shuffle queue
+                random.shuffle(self._queue)
+                # Move current track to front if playing
                 if current and current in self._queue:
-                    self._index = self._queue.index(current)
-                self._original_queue.clear()
-        
-        self.emit("shuffle-changed", enabled)
-        self.emit("queue-changed")
+                    self._queue.remove(current)
+                    self._queue.insert(0, current)
+                    self._index = 0
+            else:
+                # Restore original order
+                if self._original_queue:
+                    current = self._current_track if self._index >= 0 else None
+                    self._queue = list(self._original_queue)
+                    # Find current track in restored queue
+                    if current and current in self._queue:
+                        self._index = self._queue.index(current)
+                    self._original_queue.clear()
+            
+            self.emit("shuffle-changed", enabled)
+            self.emit("queue-changed")
 
     def toggle_shuffle(self):
         """Toggle shuffle on/off."""

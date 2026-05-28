@@ -2,15 +2,9 @@
 GTube — ui/now_playing_full.py
 Full-screen overlay: large album art, track info, controls, and lyrics panel.
 """
-import threading
-import requests
-from gi.repository import Gtk, GLib, GdkPixbuf, Pango
+from gi.repository import Gtk, GLib, Pango
 from ui.lyrics_view import LyricsView
-
-
-def _fmt_time(s: float) -> str:
-    s = int(s)
-    return f"{s // 60}:{s % 60:02d}"
+from ui.utils import load_thumbnail_async, format_time
 
 
 class NowPlayingFull(Gtk.Box):
@@ -174,23 +168,10 @@ class NowPlayingFull(Gtk.Box):
         self._artist.set_label(artist or "—")
         self._lyrics.set_loading()
         if thumb:
-            self._load_art(thumb)
+            load_thumbnail_async(thumb, 300, self._art.set_from_pixbuf)
         # Fetch lyrics
         if self._ytmusic:
             self._ytmusic.get_lyrics(vid, self._on_lyrics)
-
-    def _load_art(self, url):
-        def fetch():
-            try:
-                resp = requests.get(url, timeout=8)
-                loader = GdkPixbuf.PixbufLoader()
-                loader.write(resp.content)
-                loader.close()
-                pb = loader.get_pixbuf().scale_simple(300, 300, GdkPixbuf.InterpType.BILINEAR)
-                GLib.idle_add(self._art.set_from_pixbuf, pb)
-            except Exception:
-                pass
-        threading.Thread(target=fetch, daemon=True).start()
 
     def _on_lyrics(self, data, err):
         if data and isinstance(data, dict):
@@ -205,8 +186,8 @@ class NowPlayingFull(Gtk.Box):
         if dur > 0:
             self._seek.set_range(0, dur)
             self._seek.set_value(pos)
-        self._pos_lbl.set_label(_fmt_time(pos))
-        self._dur_lbl.set_label(_fmt_time(dur))
+        self._pos_lbl.set_label(format_time(pos))
+        self._dur_lbl.set_label(format_time(dur))
 
     def _on_state(self, player, playing):
         icon = "media-playback-pause-symbolic" if playing else "media-playback-start-symbolic"

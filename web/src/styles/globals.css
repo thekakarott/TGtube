@@ -424,6 +424,22 @@ aside, nav, button, .no-select {
     --text-xl: 18px;
     --text-2xl: 22px;
   }
+
+  html, body, #root {
+    overflow-x: hidden;
+  }
+
+  body {
+    overscroll-behavior: none;
+  }
+
+  main {
+    min-width: 0;
+    width: 100%;
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+    padding-bottom: calc(var(--playerbar-height) + env(safe-area-inset-bottom, 0px) + var(--space-4));
+  }
 }
 
 /* Sidebar overlay on mobile */

@@ -142,45 +142,49 @@ class YTMusicClient:
                 ytdlp_paths = ["yt-dlp", "/home/linuxbrew/.linuxbrew/bin/yt-dlp", f"{sys.prefix}/bin/yt-dlp"]
                 ytdlp = next((p for p in ytdlp_paths if shutil.which(p)), None)
                 
-                if not ytdlp:
-                    # Try using python -m yt_dlp as fallback
-                    print(f"[stream] yt-dlp binary not found, trying python -m yt_dlp")
-                    try:
-                        result = subprocess.run(
-                            [sys.executable, "-m", "yt_dlp", "-g", "-f", "bestaudio[ext=m4a]/bestaudio", video_id],
-                            capture_output=True, text=True, timeout=180,
-                        )
-                        stdout = result.stdout.strip()
-                        if result.returncode == 0 and stdout:
-                            print(f"[stream] got URL from python -m yt_dlp for {video_id}")
-                            return stdout
-                        raise RuntimeError("python -m yt_dlp failed")
-                    except Exception as e:
-                        raise RuntimeError(f"yt-dlp not found. Tried: {ytdlp_paths}. Error: {str(e)[:100]}")
+                cmd = [
+                    ytdlp or f"{sys.executable}",
+                    "-m" if not ytdlp else "",
+                    "yt_dlp" if not ytdlp else "",
+                    "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "--socket-timeout", "15",
+                    "-g",
+                    "-f", "bestaudio[ext=m4a]/bestaudio",
+                    video_id
+                ]
+                cmd = [x for x in cmd if x]  # Remove empty strings
                 
-                print(f"[stream] using yt-dlp: {ytdlp}")
+                print(f"[stream] executing: {' '.join(cmd[:3])}... timeout: 30s")
                 result = subprocess.run(
-                    [ytdlp, "-g", "-f", "bestaudio[ext=m4a]/bestaudio", video_id],
-                    capture_output=True, text=True, timeout=180,
+                    cmd,
+                    capture_output=True, text=True, timeout=30,
                 )
                 
                 stdout = result.stdout.strip()
                 stderr = result.stderr.strip()
                 
-                print(f"[stream] yt-dlp exit code: {result.returncode}, stdout: {bool(stdout)}, stderr: {bool(stderr)}")
+                print(f"[stream] exit code: {result.returncode}, has stdout: {bool(stdout)}")
                 
                 if result.returncode != 0:
-                    error_msg = stderr or stdout or "yt-dlp failed with no output"
-                    raise RuntimeError(f"yt-dlp error (code {result.returncode}): {error_msg[:200]}")
+                    # Check if it's a specific error
+                    if "Sign in" in stderr or "age-restricted" in stderr.lower():
+                        raise RuntimeError("Video is age-restricted or requires sign-in")
+                    if "not available" in stderr.lower():
+                        raise RuntimeError("Video not available in this region")
+                    error_msg = stderr or stdout or "yt-dlp failed"
+                    raise RuntimeError(f"yt-dlp error: {error_msg[:150]}")
 
                 if stdout:
-                    print(f"[stream] got URL from yt-dlp for {video_id}")
+                    print(f"[stream] successfully resolved {video_id}")
                     return stdout
 
                 raise RuntimeError("yt-dlp returned empty output")
+            except subprocess.TimeoutExpired:
+                print(f"[ytmusic] yt-dlp timeout for {video_id}")
+                raise RuntimeError("Stream extraction timeout - YouTube may be rate-limiting")
             except Exception as e:
                 error_str = str(e)
-                print(f"[ytmusic] get_stream_url error for {video_id}: {error_str[:200]}")
+                print(f"[ytmusic] get_stream_url error for {video_id}: {error_str[:150]}")
                 raise RuntimeError(error_str) from e
         self._run_async(fn, callback)
     # ------------------------------------------------------------------

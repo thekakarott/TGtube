@@ -16,7 +16,14 @@ CORS(app, origins=os.environ.get("CORS_ORIGIN", "*").split(","))
 
 @app.route("/api/health")
 def health():
-    return jsonify({"status": "ok"})
+    import sys
+    import shutil
+    yt_dlp_path = next((p for p in ["yt-dlp", f"{sys.prefix}/bin/yt-dlp"] if shutil.which(p)), "NOT FOUND")
+    return jsonify({
+        "status": "ok",
+        "yt_dlp": yt_dlp_path,
+        "python": sys.version,
+    })
 
 ytmusic = YTMusicClient()
 
@@ -24,9 +31,9 @@ ytmusic = YTMusicClient()
 _stream_cache: dict[str, tuple[str, float]] = {}
 _stream_cache_lock = threading.Lock()
 _STREAM_CACHE_TTL = 3600  # 1 hour
-# Use longer timeout on Render (slower environment)
-_STREAM_TIMEOUT_SECONDS = 180  # 3 minutes for initial resolution
-_STREAM_PROXY_TIMEOUT_SECONDS = 180
+# Render has ~60s infrastructure timeout, so keep our timeout shorter
+_STREAM_TIMEOUT_SECONDS = 45  # 45 seconds max for stream URL resolution
+_STREAM_PROXY_TIMEOUT_SECONDS = 30  # 30 seconds for proxy stream requests
 
 
 def _get_stream_url(video_id: str, timeout_seconds: int = _STREAM_TIMEOUT_SECONDS, bypass_cache: bool = False) -> str | None:

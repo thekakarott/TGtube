@@ -122,6 +122,7 @@ class YTMusicClient:
         def fn():
             try:
                 # Try ytmusicapi first (may not return URLs on newer YouTube)
+                print(f"[stream] trying ytmusicapi.get_song({video_id})")
                 song_info = self._yt.get_song(video_id)
                 if song_info and 'streamingData' in song_info:
                     streaming_data = song_info['streamingData']
@@ -132,6 +133,9 @@ class YTMusicClient:
                         if url:
                             print(f"[stream] got URL from ytmusicapi for {video_id}")
                             return url
+                    print(f"[stream] ytmusicapi: streamingData exists but no formats")
+                else:
+                    print(f"[stream] ytmusicapi: no streamingData in response")
 
                 # Fallback: use yt-dlp to extract direct audio URL
                 import sys
@@ -139,26 +143,45 @@ class YTMusicClient:
                 ytdlp = next((p for p in ytdlp_paths if shutil.which(p)), None)
                 
                 if not ytdlp:
-                    raise RuntimeError(f"yt-dlp not found in PATH or common locations: {ytdlp_paths}")
+                    # Try using python -m yt_dlp as fallback
+                    print(f"[stream] yt-dlp binary not found, trying python -m yt_dlp")
+                    try:
+                        result = subprocess.run(
+                            [sys.executable, "-m", "yt_dlp", "-g", "-f", "bestaudio[ext=m4a]/bestaudio", video_id],
+                            capture_output=True, text=True, timeout=180,
+                        )
+                        stdout = result.stdout.strip()
+                        if result.returncode == 0 and stdout:
+                            print(f"[stream] got URL from python -m yt_dlp for {video_id}")
+                            return stdout
+                        raise RuntimeError("python -m yt_dlp failed")
+                    except Exception as e:
+                        raise RuntimeError(f"yt-dlp not found. Tried: {ytdlp_paths}. Error: {str(e)[:100]}")
                 
-                print(f"[stream] using yt-dlp at: {ytdlp}")
+                print(f"[stream] using yt-dlp: {ytdlp}")
                 result = subprocess.run(
                     [ytdlp, "-g", "-f", "bestaudio[ext=m4a]/bestaudio", video_id],
                     capture_output=True, text=True, timeout=180,
                 )
+                
+                stdout = result.stdout.strip()
+                stderr = result.stderr.strip()
+                
+                print(f"[stream] yt-dlp exit code: {result.returncode}, stdout: {bool(stdout)}, stderr: {bool(stderr)}")
+                
                 if result.returncode != 0:
-                    stderr = result.stderr.strip() or result.stdout.strip() or "yt-dlp failed"
-                    raise RuntimeError(f"yt-dlp error (code {result.returncode}): {stderr}")
+                    error_msg = stderr or stdout or "yt-dlp failed with no output"
+                    raise RuntimeError(f"yt-dlp error (code {result.returncode}): {error_msg[:200]}")
 
-                url = result.stdout.strip()
-                if url:
+                if stdout:
                     print(f"[stream] got URL from yt-dlp for {video_id}")
-                    return url
+                    return stdout
 
-                raise RuntimeError("yt-dlp returned no stream URL")
+                raise RuntimeError("yt-dlp returned empty output")
             except Exception as e:
-                print(f"[ytmusic] get_stream_url error for {video_id}: {e}")
-                raise RuntimeError(str(e)) from e
+                error_str = str(e)
+                print(f"[ytmusic] get_stream_url error for {video_id}: {error_str[:200]}")
+                raise RuntimeError(error_str) from e
         self._run_async(fn, callback)
     # ------------------------------------------------------------------
     # Lyrics

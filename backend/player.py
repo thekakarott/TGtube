@@ -4,6 +4,8 @@ Audio engine wrapping python-mpv with GObject signals.
 All mpv callbacks are marshalled onto the GTK main loop via GLib.idle_add.
 """
 import threading
+import random
+import re
 from gi.repository import GObject, GLib
 
 
@@ -25,21 +27,55 @@ class Player(GObject.Object):
         "track-ended": (GObject.SignalFlags.RUN_FIRST, None, ()),
         # (error_message,)
         "error": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
+        # (repeat_mode: str) - "none", "one", "all"
+        "repeat-mode-changed": (GObject.SignalFlags.RUN_FIRST, None, (str,)),
+        # (shuffle_enabled: bool)
+        "shuffle-changed": (GObject.SignalFlags.RUN_FIRST, None, (bool,)),
+        # queue was modified
+        "queue-changed": (GObject.SignalFlags.RUN_FIRST, None, ()),
     }
 
     def __init__(self):
         super().__init__()
         self._queue: list[dict] = []
+        self._original_queue: list[dict] = []  # Unshuffled queue
         self._index: int = -1
         self._current_track: dict = {}
         self._seeking = False
         self._mpv = None
         self._ytmusic = None  # Will be set later
+        self._repeat_mode: str = "none"  # "none", "one", "all"
+        self._shuffle_enabled: bool = False
+        self._queue_lock = threading.RLock()  # Thread-safe queue operations
         self._init_mpv()
 
     # ------------------------------------------------------------------
     # Private
     # ------------------------------------------------------------------
+
+    def _validate_video_id(self, vid: str) -> str:
+        """Validate and sanitize YouTube video ID.
+        
+        YouTube video IDs are exactly 11 characters long and contain only
+        alphanumeric characters, hyphens, and underscores.
+        
+        Args:
+            vid: Video ID to validate
+            
+        Returns:
+            Validated video ID
+            
+        Raises:
+            ValueError: If video ID is invalid or potentially malicious
+        """
+        if not vid or not isinstance(vid, str):
+            raise ValueError("Invalid video ID: must be a non-empty string")
+        
+        # YouTube video IDs are exactly 11 characters: [A-Za-z0-9_-]{11}
+        if not re.match(r'^[A-Za-z0-9_-]{11}$', vid):
+            raise ValueError(f"Invalid video ID format: '{vid}'. Must be 11 alphanumeric characters.")
+        
+        return vid
 
     def _init_mpv(self):
         try:
@@ -67,13 +103,13 @@ class Player(GObject.Object):
             self._mpv["ytdl-raw-options"] = {"js-runtimes": "node", "yes-playlist": ""}
 
             @self._mpv.event_callback("file-loaded")
-            def _on_file_loaded():
+            def _on_file_loaded(event):
                 duration = self._mpv.duration or 0
                 pause = self._mpv.pause if self._mpv else None
                 print(f"[mpv] file-loaded: duration={duration}s, pause={pause}")
 
             @self._mpv.event_callback("playback-restart")
-            def _on_restart():
+            def _on_restart(event):
                 print(f"[mpv] playback-restart event")
 
             @self._mpv.event_callback("log-message")
@@ -122,8 +158,51 @@ class Player(GObject.Object):
         self.emit("position-changed", pos, dur)
 
     def _on_track_ended(self):
-        self.emit("track-ended")
-        self.next()
+        """Handle track end with robust repeat logic and error handling."""
+        try:
+            print(f"[player] Track ended. Repeat: {self._repeat_mode}, Queue: {len(self._queue)}, Index: {self._index}")
+            
+            self.emit("track-ended")
+            
+            if not self._current_track:
+                print("[player] WARNING: No current track, cannot handle repeat")
+                return
+            
+            if self._repeat_mode == "one":
+                # Replay the same track with small delay to ensure clean restart
+                print(f"[player] Repeat ONE - replaying: {self._current_track.get('title', 'Unknown')}")
+                GLib.timeout_add(100, lambda: self._start_playback(self._current_track) or False)
+                
+            elif self._repeat_mode == "all":
+                # Go to next track, loop back to start if at end
+                print(f"[player] Repeat ALL - current index: {self._index}/{len(self._queue)-1}")
+                if self._index < len(self._queue) - 1:
+                    print("[player] Advancing to next track")
+                    GLib.timeout_add(100, lambda: self.next() or False)
+                else:
+                    # Loop back to start
+                    print("[player] End of queue - looping to start")
+                    if self._queue:
+                        self._index = 0
+                        self._current_track = self._queue[0]
+                        GLib.timeout_add(100, lambda: self._start_playback(self._current_track) or False)
+                    else:
+                        print("[player] ERROR: Queue is empty, cannot loop")
+                        
+            else:  # none
+                # No repeat - just go to next if available
+                print(f"[player] No repeat - checking for next track")
+                if self._index < len(self._queue) - 1:
+                    print("[player] Advancing to next track")
+                    GLib.timeout_add(100, lambda: self.next() or False)
+                else:
+                    print("[player] End of queue - stopping playback")
+                    
+        except Exception as e:
+            print(f"[player] ERROR in _on_track_ended: {e}")
+            import traceback
+            traceback.print_exc()
+            GLib.idle_add(self.emit, "error", f"Playback error: {e}")
 
     # ------------------------------------------------------------------
     # Public API
@@ -144,7 +223,14 @@ class Player(GObject.Object):
         self._start_playback(track)
 
     def _start_playback(self, track: dict):
-        vid = track.get("videoId", "")
+        # Validate video ID to prevent command injection
+        try:
+            vid = self._validate_video_id(track.get("videoId", ""))
+        except ValueError as e:
+            print(f"[player] Invalid video ID: {e}")
+            GLib.idle_add(self.emit, "error", f"Invalid video: {e}")
+            return
+        
         title = track.get("title", "Unknown")
         artists = track.get("artists") or []
         artist = artists[0].get("name", "") if artists else track.get("artist", "")
@@ -161,24 +247,15 @@ class Player(GObject.Object):
                 self._mpv.play(url)
                 print(f"[player] [thread] mpv.play() returned")
                 
-                # Set a flag to track if file loaded successfully
-                file_loaded = False
-                
-                def on_file_loaded():
-                    nonlocal file_loaded
-                    file_loaded = True
-                    duration = self._mpv.duration or 0
-                    print(f"[player] [thread] SUCCESS: file loaded, duration={duration}s")
-                
-                # Add our success check callback
-                self._mpv.event_callback("file-loaded")(on_file_loaded)
-                
-                # Wait up to 5 seconds for file to load
+                # Wait for file to load (mpv will trigger file-loaded event)
                 import time
+                time.sleep(1)  # Give mpv time to start loading
+                
+                # Check if playback started successfully
                 for i in range(10):  # 10 * 0.5s = 5s
                     time.sleep(0.5)
-                    if file_loaded:
-                        print(f"[player] [thread] yt-dlp succeeded!")
+                    if self._mpv.duration and self._mpv.duration > 0:
+                        print(f"[player] [thread] yt-dlp succeeded! duration={self._mpv.duration}s")
                         return
                 
                 print(f"[player] [thread] yt-dlp failed to load file, trying ytmusicapi...")
@@ -238,7 +315,114 @@ class Player(GObject.Object):
 
     def clear_queue(self):
         self._queue.clear()
+        self._original_queue.clear()
         self._index = -1
+        self.emit("queue-changed")
+
+    def add_to_queue(self, track: dict):
+        """Add track to end of queue."""
+        self._queue.append(track)
+        if self._shuffle_enabled:
+            self._original_queue.append(track)
+        self.emit("queue-changed")
+
+    def play_next(self, track: dict):
+        """Insert track after current position."""
+        insert_pos = self._index + 1
+        self._queue.insert(insert_pos, track)
+        if self._shuffle_enabled:
+            self._original_queue.insert(insert_pos, track)
+        self.emit("queue-changed")
+
+    def remove_from_queue(self, index: int):
+        """Remove track at index from queue (thread-safe)."""
+        with self._queue_lock:
+            if 0 <= index < len(self._queue):
+                removed = self._queue.pop(index)
+                if self._shuffle_enabled and removed in self._original_queue:
+                    self._original_queue.remove(removed)
+                # Adjust current index if needed
+                if index < self._index:
+                    self._index -= 1
+                elif index == self._index:
+                    # Removed current track, play next
+                    if self._index < len(self._queue):
+                        self._current_track = self._queue[self._index]
+                        self._start_playback(self._current_track)
+                self.emit("queue-changed")
+
+    def reorder_queue(self, old_index: int, new_index: int):
+        """Move track from old_index to new_index."""
+        if 0 <= old_index < len(self._queue) and 0 <= new_index < len(self._queue):
+            track = self._queue.pop(old_index)
+            self._queue.insert(new_index, track)
+            # Adjust current index
+            if old_index == self._index:
+                self._index = new_index
+            elif old_index < self._index <= new_index:
+                self._index -= 1
+            elif new_index <= self._index < old_index:
+                self._index += 1
+            self.emit("queue-changed")
+
+    # ------------------------------------------------------------------
+    # Repeat & Shuffle
+    # ------------------------------------------------------------------
+
+    def set_repeat_mode(self, mode: str):
+        """Set repeat mode: 'none', 'one', or 'all'."""
+        if mode in ("none", "one", "all"):
+            self._repeat_mode = mode
+            print(f"[player] Repeat mode set to: {mode}")
+            self.emit("repeat-mode-changed", mode)
+
+    def get_repeat_mode(self) -> str:
+        return self._repeat_mode
+
+    def cycle_repeat_mode(self):
+        """Cycle through repeat modes: none → one → all → none."""
+        modes = ["none", "one", "all"]
+        current_idx = modes.index(self._repeat_mode)
+        next_mode = modes[(current_idx + 1) % len(modes)]
+        self.set_repeat_mode(next_mode)
+
+    def set_shuffle(self, enabled: bool):
+        """Enable or disable shuffle (thread-safe)."""
+        with self._queue_lock:
+            if enabled == self._shuffle_enabled:
+                return
+            
+            self._shuffle_enabled = enabled
+            print(f"[player] Shuffle {'enabled' if enabled else 'disabled'}")
+            
+            if enabled:
+                # Save original queue order
+                self._original_queue = list(self._queue)
+                # Get current track
+                current = self._current_track if self._index >= 0 else None
+                # Shuffle queue
+                random.shuffle(self._queue)
+                # Move current track to front if playing
+                if current and current in self._queue:
+                    self._queue.remove(current)
+                    self._queue.insert(0, current)
+                    self._index = 0
+            else:
+                # Restore original order
+                if self._original_queue:
+                    current = self._current_track if self._index >= 0 else None
+                    self._queue = list(self._original_queue)
+                    # Find current track in restored queue
+                    if current and current in self._queue:
+                        self._index = self._queue.index(current)
+                    self._original_queue.clear()
+            
+            self.emit("shuffle-changed", enabled)
+            self.emit("queue-changed")
+
+    def toggle_shuffle(self):
+        """Toggle shuffle on/off."""
+        self.set_shuffle(not self._shuffle_enabled)
 
     # ------------------------------------------------------------------
     # Properties
@@ -275,3 +459,11 @@ class Player(GObject.Object):
     @property
     def queue(self) -> list[dict]:
         return self._queue
+
+    @property
+    def repeat_mode(self) -> str:
+        return self._repeat_mode
+
+    @property
+    def shuffle_enabled(self) -> bool:
+        return self._shuffle_enabled

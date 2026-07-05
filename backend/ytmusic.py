@@ -4,6 +4,8 @@ Thread-safe wrapper around ytmusicapi.
 All API calls run in a background thread; results delivered via callback(data, error).
 """
 import threading
+import shutil
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Optional
 from ytmusicapi import YTMusic
@@ -52,6 +54,10 @@ class YTMusicClient:
             return self._yt.search(query, filter=filter, limit=20)
         self._run_async(fn, callback)
 
+    def get_search_suggestions(self, query: str, callback: Callable):
+        """Get search autocomplete suggestions."""
+        self._run_async(lambda: self._yt.get_search_suggestions(query), callback)
+
     def search_all(self, query: str, callback: Callable):
         """Run searches for songs, albums, artists in parallel, combine."""
         results = {"songs": [], "albums": [], "artists": [], "playlists": []}
@@ -95,10 +101,17 @@ class YTMusicClient:
     # Playback context
     # ------------------------------------------------------------------
 
-    def get_watch_playlist(self, video_id: str, callback: Callable):
-        """Get up-next queue for a given track."""
+    def get_watch_playlist(self, video_id: str = None, playlist_id: str = None,
+                           radio: bool = False, callback: Callable = None):
+        """Get up-next queue for a given track, or artist radio/shuffle playlist."""
         def fn():
-            return self._yt.get_watch_playlist(videoId=video_id, limit=25)
+            kwargs = {"limit": 25}
+            if playlist_id:
+                kwargs["playlistId"] = playlist_id
+                kwargs["radio"] = radio
+            elif video_id:
+                kwargs["videoId"] = video_id
+            return self._yt.get_watch_playlist(**kwargs)
         self._run_async(fn, callback)
     # ------------------------------------------------------------------
     # Streaming
@@ -108,31 +121,33 @@ class YTMusicClient:
         """Get streaming URL for a video. callback(url: str, error)"""
         def fn():
             try:
-                print(f"[ytmusic] Getting song info for {video_id}")
+                # Try ytmusicapi first (may not return URLs on newer YouTube)
                 song_info = self._yt.get_song(video_id)
-                print(f"[ytmusic] Song info keys: {list(song_info.keys()) if song_info else 'None'}")
-                
                 if song_info and 'streamingData' in song_info:
                     streaming_data = song_info['streamingData']
-                    print(f"[ytmusic] Streaming data keys: {list(streaming_data.keys())}")
-                    
                     formats = streaming_data.get('formats', [])
                     if formats:
-                        print(f"[ytmusic] Found {len(formats)} formats")
-                        # Get the best audio format
                         best_format = max(formats, key=lambda f: f.get('bitrate', 0))
                         url = best_format.get('url')
-                        print(f"[ytmusic] Best format bitrate: {best_format.get('bitrate')}, has url: {bool(url)}")
+                        if url:
+                            return url
+
+                # Fallback: use yt-dlp to extract direct audio URL
+                ytdlp_paths = ["yt-dlp", "/home/linuxbrew/.linuxbrew/bin/yt-dlp"]
+                ytdlp = next((p for p in ytdlp_paths if shutil.which(p)), "yt-dlp")
+                result = subprocess.run(
+                    [ytdlp, "-g", "-f", "bestaudio[ext=m4a]/bestaudio", video_id],
+                    capture_output=True, text=True, timeout=30,
+                )
+                if result.returncode == 0:
+                    url = result.stdout.strip()
+                    if url:
                         return url
-                    else:
-                        print("[ytmusic] No formats in streaming data")
-                else:
-                    print("[ytmusic] No streamingData in song info")
+
+                print(f"[ytmusic] Failed to get stream URL for {video_id}")
                 return None
             except Exception as e:
                 print(f"[ytmusic] get_stream_url error: {e}")
-                import traceback
-                traceback.print_exc()
                 return None
         self._run_async(fn, callback)
     # ------------------------------------------------------------------
@@ -159,3 +174,54 @@ class YTMusicClient:
 
     def get_charts(self, country: str = "US", callback: Callable = None):
         self._run_async(lambda: self._yt.get_charts(country=country), callback)
+
+    def get_moods_genres(self, callback: Callable):
+        """Get mood and genre categories."""
+        self._run_async(lambda: self._yt.get_mood_categories(), callback)
+
+    def get_artist_related(self, channel_id: str, callback: Callable):
+        """Get related/similar artists."""
+        def fn():
+            artist = self._yt.get_artist(channel_id)
+            return artist.get("related", []) if artist else []
+        self._run_async(fn, callback)
+
+    # ------------------------------------------------------------------
+    # Batch artist tracks (for personalized home feed)
+    # ------------------------------------------------------------------
+
+    def get_artist_tracks(self, channel_ids: list[str], callback: Callable):
+        """Batch fetch top tracks for multiple artists. Returns {channelId: {name, thumbnail, tracks, radioId}}."""
+        def fn():
+            results = {}
+            for cid in channel_ids:
+                try:
+                    artist = self._yt.get_artist(cid)
+                    if not artist:
+                        continue
+                    songs_data = artist.get("songs", {})
+                    tracks = songs_data.get("results", []) if isinstance(songs_data, dict) else []
+                    thumb = artist.get("thumbnails", [{}])
+                    results[cid] = {
+                        "name": artist.get("name", ""),
+                        "channelId": cid,
+                        "thumbnail": thumb[-1]["url"] if thumb else "",
+                        "tracks": tracks[:10],
+                        "radioId": artist.get("radioId"),
+                        "shuffleId": artist.get("shuffleId"),
+                        "monthlyListeners": artist.get("monthlyListeners", ""),
+                    }
+                except Exception as e:
+                    print(f"[ytmusic] get_artist_tracks error for {cid}: {e}")
+            return results
+        self._run_async(fn, callback)
+
+    def get_artist_songs(self, browse_id: str, callback: Callable):
+        """Get full song list for an artist via their songs browseId."""
+        self._run_async(
+            lambda: self._yt.get_playlist(browse_id, limit=50), callback
+        )
+
+    def get_song_related(self, browse_id: str, callback: Callable):
+        """Get related content for a song."""
+        self._run_async(lambda: self._yt.get_song_related(browse_id), callback)

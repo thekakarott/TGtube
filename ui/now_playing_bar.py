@@ -2,28 +2,8 @@
 GTube — ui/now_playing_bar.py
 Persistent bottom bar showing current track + playback controls.
 """
-import threading
-import requests
-from gi.repository import Gtk, GLib, GdkPixbuf, Pango
-
-
-def _fmt_time(seconds: float) -> str:
-    s = int(seconds)
-    return f"{s // 60}:{s % 60:02d}"
-
-
-def _load_thumb_async(url: str, callback):
-    def fetch():
-        try:
-            resp = requests.get(url, timeout=8)
-            loader = GdkPixbuf.PixbufLoader()
-            loader.write(resp.content)
-            loader.close()
-            pb = loader.get_pixbuf().scale_simple(52, 52, GdkPixbuf.InterpType.BILINEAR)
-            GLib.idle_add(callback, pb)
-        except Exception:
-            GLib.idle_add(callback, None)
-    threading.Thread(target=fetch, daemon=True).start()
+from gi.repository import Gtk, GLib, Pango
+from ui.utils import load_thumbnail_async, format_time
 
 
 class NowPlayingBar(Gtk.Box):
@@ -81,13 +61,17 @@ class NowPlayingBar(Gtk.Box):
         btn_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         btn_row.set_halign(Gtk.Align.CENTER)
 
+        self._shuffle_btn = self._make_btn("media-playlist-shuffle-symbolic", "control-btn", self._on_shuffle)
         self._prev_btn = self._make_btn("media-skip-backward-symbolic", "control-btn", self._on_prev)
         self._play_btn = self._make_btn("media-playback-start-symbolic", "play-btn", self._on_play_pause)
         self._next_btn = self._make_btn("media-skip-forward-symbolic", "control-btn", self._on_next)
+        self._repeat_btn = self._make_btn("media-playlist-repeat-symbolic", "control-btn", self._on_repeat)
 
+        btn_row.append(self._shuffle_btn)
         btn_row.append(self._prev_btn)
         btn_row.append(self._play_btn)
         btn_row.append(self._next_btn)
+        btn_row.append(self._repeat_btn)
         center.append(btn_row)
 
         prog_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
@@ -102,14 +86,10 @@ class NowPlayingBar(Gtk.Box):
         self._progress.set_value(0)
         self._progress.set_hexpand(True)
         self._progress.set_draw_value(False)
-        self._progress.set_sensitive(False)
+        self._progress.set_sensitive(True)  # Enable slider immediately
         
-        # GTK4 uses gesture controllers instead of event signals
-        click_gesture = Gtk.GestureClick.new()
-        click_gesture.set_button(0)  # All buttons
-        click_gesture.connect("pressed", lambda *_: setattr(self, '_dragging', True))
-        click_gesture.connect("released", self._on_seek_release)
-        self._progress.add_controller(click_gesture)
+        # Connect to value-changed signal for seeking
+        self._progress.connect("change-value", self._on_seek_change)
         prog_row.append(self._progress)
 
         self._dur_label = Gtk.Label(label="0:00")
@@ -154,13 +134,19 @@ class NowPlayingBar(Gtk.Box):
         p.connect("track-changed", self._on_track_changed)
         p.connect("position-changed", self._on_position_changed)
         p.connect("state-changed", self._on_state_changed)
+        p.connect("repeat-mode-changed", self._on_repeat_mode_changed)
+        p.connect("shuffle-changed", self._on_shuffle_changed)
+        
+        # Initialize button states
+        self._update_repeat_button()
+        self._update_shuffle_button()
 
     def _on_track_changed(self, player, vid, title, artist, thumb):
         self._title_label.set_label(title or "Unknown")
         self._artist_label.set_label(artist or "—")
         self._progress.set_sensitive(True)
         if thumb:
-            _load_thumb_async(thumb, self._set_art)
+            load_thumbnail_async(thumb, 52, self._set_art)
         else:
             self._art.set_from_icon_name("audio-x-generic")
 
@@ -175,9 +161,12 @@ class NowPlayingBar(Gtk.Box):
             return
         if dur > 0:
             self._progress.set_range(0, dur)
+            # Block signal to prevent feedback loop
+            self._progress.handler_block_by_func(self._on_seek_change)
             self._progress.set_value(pos)
-        self._pos_label.set_label(_fmt_time(pos))
-        self._dur_label.set_label(_fmt_time(dur))
+            self._progress.handler_unblock_by_func(self._on_seek_change)
+        self._pos_label.set_label(format_time(pos))
+        self._dur_label.set_label(format_time(dur))
 
     def _on_state_changed(self, player, is_playing):
         icon = "media-playback-pause-symbolic" if is_playing else "media-playback-start-symbolic"
@@ -193,9 +182,18 @@ class NowPlayingBar(Gtk.Box):
     def _on_next(self, btn):
         self._player.next()
 
-    def _on_seek_release(self, gesture):
+    def _on_shuffle(self, btn):
+        self._player.toggle_shuffle()
+
+    def _on_repeat(self, btn):
+        self._player.cycle_repeat_mode()
+
+    def _on_seek_change(self, scale, scroll_type, value):
+        """Handle slider value changes for seeking."""
+        self._dragging = True
+        self._player.seek(value)
         self._dragging = False
-        self._player.seek(self._progress.get_value())
+        return False  # Allow default handler to run
 
     def _on_volume_changed(self, scale):
         self._player.set_volume(scale.get_value())
@@ -203,3 +201,29 @@ class NowPlayingBar(Gtk.Box):
     def _on_expand_clicked(self, btn):
         if self._on_expand:
             self._on_expand()
+
+    def _on_repeat_mode_changed(self, player, mode):
+        self._update_repeat_button()
+
+    def _on_shuffle_changed(self, player, enabled):
+        self._update_shuffle_button()
+
+    def _update_repeat_button(self):
+        """Update repeat button icon based on mode."""
+        mode = self._player.repeat_mode
+        if mode == "one":
+            self._repeat_btn.set_icon_name("media-playlist-repeat-song-symbolic")
+            self._repeat_btn.add_css_class("active")
+        elif mode == "all":
+            self._repeat_btn.set_icon_name("media-playlist-repeat-symbolic")
+            self._repeat_btn.add_css_class("active")
+        else:  # none
+            self._repeat_btn.set_icon_name("media-playlist-repeat-symbolic")
+            self._repeat_btn.remove_css_class("active")
+
+    def _update_shuffle_button(self):
+        """Update shuffle button state."""
+        if self._player.shuffle_enabled:
+            self._shuffle_btn.add_css_class("active")
+        else:
+            self._shuffle_btn.remove_css_class("active")

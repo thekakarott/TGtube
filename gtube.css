@@ -1,288 +1,471 @@
-/* GTube — Gruvbox Dark Theme for GTK4 / Libadwaita */
+/* GTube — Modern Music Streaming UI (Spotify/Apple Music Inspired) */
+/* GTK4 Compatible CSS */
 
-/* ── Colour tokens ─────────────────────────────── */
-@define-color accent_bg_color       #d79921;
-@define-color accent_color          #fabd2f;
-@define-color accent_fg_color       #282828;
-@define-color destructive_bg_color  #cc241d;
-@define-color destructive_color     #fb4934;
-@define-color window_bg_color       #282828;
-@define-color window_fg_color       #ebdbb2;
-@define-color view_bg_color         #1d2021;
-@define-color view_fg_color         #ebdbb2;
-@define-color headerbar_bg_color    #1d2021;
-@define-color headerbar_fg_color    #ebdbb2;
-@define-color headerbar_border_color #3c3836;
-@define-color sidebar_bg_color      #32302f;
-@define-color sidebar_fg_color      #ebdbb2;
-@define-color card_bg_color         #3c3836;
-@define-color card_fg_color         #ebdbb2;
-@define-color popover_bg_color      #3c3836;
-@define-color popover_fg_color      #ebdbb2;
-@define-color shade_color           rgba(0,0,0,0.35);
-@define-color scrollbar_outline_color transparent;
+/* ══════════════════════════════════════════════════════════════════
+   COLOR PALETTE - Modern Dark Theme
+   ══════════════════════════════════════════════════════════════════ */
 
-/* ── Global ─────────────────────────────────────── */
-* { font-family: "JetBrains Mono", "Inter", monospace; }
+@define-color bg_primary           #121212;
+@define-color bg_secondary         #181818;
+@define-color bg_tertiary          #282828;
+@define-color bg_elevated          #2a2a2a;
+
+@define-color accent_primary       #1db954;
+@define-color accent_hover         #1ed760;
+@define-color accent_pressed       #169c46;
+
+@define-color text_primary         #ffffff;
+@define-color text_secondary       #b3b3b3;
+@define-color text_tertiary        #6a6a6a;
+
+@define-color border_subtle        #282828;
+@define-color border_medium        #3e3e3e;
+
+/* ══════════════════════════════════════════════════════════════════
+   GLOBAL STYLES
+   ══════════════════════════════════════════════════════════════════ */
+
+* {
+    font-family: "Circular", "Helvetica Neue", "Helvetica", "Arial", sans-serif;
+}
 
 window,
-.background { background-color: #282828; color: #ebdbb2; }
-
-/* ── Header bar ──────────────────────────────────── */
-headerbar {
-    background-color: #1d2021;
-    color: #ebdbb2;
-    border-bottom: 1px solid #3c3836;
-    box-shadow: none;
+.background {
+    background-color: #121212;
+    color: #ffffff;
 }
-headerbar .title { font-weight: 700; font-size: 15px; color: #fabd2f; }
+
+scrolledwindow {
+    background-color: transparent;
+}
+
+viewport {
+    background-color: transparent;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   HEADER BAR
+   ══════════════════════════════════════════════════════════════════ */
+
+headerbar {
+    background-color: #181818;
+    color: #ffffff;
+    border-bottom: 1px solid #282828;
+    min-height: 64px;
+    padding: 0 16px;
+}
+
+headerbar .title {
+    font-weight: 700;
+    font-size: 18px;
+    color: #ffffff;
+}
+
 headerbar button {
     background: transparent;
-    color: #a89984;
+    color: #b3b3b3;
     border: none;
-    border-radius: 6px;
+    border-radius: 50%;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 8px;
 }
-headerbar button:hover { background-color: #3c3836; color: #ebdbb2; }
 
-/* ── Sidebar ─────────────────────────────────────── */
-#sidebar {
-    background-color: #32302f;
-    border-right: 1px solid #3c3836;
-    min-width: 200px;
+headerbar button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   SIDEBAR
+   ══════════════════════════════════════════════════════════════════ */
+
+#sidebar {
+    background-color: #000000;
+    border-right: 1px solid #282828;
+    min-width: 240px;
+    padding: 8px;
+}
+
+#sidebar .logo-label {
+    font-size: 24px;
+    font-weight: 900;
+    color: #ffffff;
+    padding: 24px 16px 16px 16px;
+}
+
 #sidebar button {
     background: transparent;
-    color: #a89984;
+    color: #b3b3b3;
     border: none;
     border-radius: 8px;
-    margin: 2px 8px;
-    padding: 10px 12px;
-    font-size: 13px;
-    transition: all 150ms ease;
+    margin: 2px 0;
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 600;
 }
+
 #sidebar button:hover {
-    background-color: #3c3836;
-    color: #ebdbb2;
+    background-color: #282828;
+    color: #ffffff;
 }
+
 #sidebar button.active {
-    background-color: #d79921;
-    color: #282828;
+    background-color: #282828;
+    color: #ffffff;
     font-weight: 700;
 }
-#sidebar .logo-label {
-    font-size: 20px;
-    font-weight: 900;
-    color: #fabd2f;
-    padding: 16px 16px 8px 16px;
-}
 
-/* ── Content area ────────────────────────────────── */
-scrolledwindow { background-color: transparent; }
-viewport { background-color: transparent; }
+/* ══════════════════════════════════════════════════════════════════
+   SECTION HEADERS
+   ══════════════════════════════════════════════════════════════════ */
 
-/* ── Section headers ─────────────────────────────── */
 .section-title {
-    font-size: 16px;
+    font-size: 24px;
     font-weight: 700;
-    color: #ebdbb2;
-    padding: 16px 16px 8px 16px;
+    color: #ffffff;
+    padding: 24px 24px 16px 24px;
 }
 
-/* ── Music cards ─────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════
+   MUSIC CARDS - Spotify-Style
+   ══════════════════════════════════════════════════════════════════ */
+
 .music-card {
-    background-color: #3c3836;
-    border-radius: 10px;
-    padding: 10px;
-    margin: 6px;
-    transition: background-color 120ms ease, transform 120ms ease;
+    background-color: #181818;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 8px;
     border: 1px solid transparent;
 }
+
 .music-card:hover {
-    background-color: #504945;
-    border-color: #d79921;
-    transform: translateY(-2px);
+    background-color: #282828;
 }
+
 .music-card .card-title {
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 700;
-    color: #ebdbb2;
+    color: #ffffff;
+    margin-top: 12px;
 }
+
 .music-card .card-subtitle {
-    font-size: 11px;
-    color: #a89984;
+    font-size: 12px;
+    color: #b3b3b3;
+    margin-top: 4px;
 }
+
 .music-card image {
     border-radius: 6px;
 }
 
-/* ── Track row (in lists) ────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════
+   TRACK ROWS
+   ══════════════════════════════════════════════════════════════════ */
+
 .track-row {
-    border-radius: 8px;
-    padding: 8px 12px;
-    margin: 2px 8px;
-    transition: background-color 100ms ease;
-}
-.track-row:hover { background-color: #3c3836; }
-.track-row.playing { background-color: rgba(215, 153, 33, 0.18); }
-.track-row .track-title { font-size: 13px; color: #ebdbb2; font-weight: 600; }
-.track-row .track-artist { font-size: 12px; color: #928374; }
-.track-row .track-duration { font-size: 11px; color: #7c6f64; }
-
-/* ── Search bar ──────────────────────────────────── */
-searchentry {
-    background-color: #3c3836;
-    color: #ebdbb2;
-    border: 1px solid #504945;
-    border-radius: 20px;
+    border-radius: 4px;
     padding: 8px 16px;
+    margin: 0 8px;
+}
+
+.track-row:hover {
+    background-color: #282828;
+}
+
+.track-row.playing {
+    background-color: #2a2a2a;
+}
+
+.track-row .track-title {
     font-size: 14px;
-    caret-color: #fabd2f;
-}
-searchentry:focus {
-    border-color: #d79921;
-    box-shadow: 0 0 0 2px rgba(215, 153, 33, 0.25);
+    color: #ffffff;
+    font-weight: 600;
 }
 
-/* ── Now Playing Bar ─────────────────────────────── */
-#now-playing-bar {
-    background-color: #1d2021;
-    border-top: 1px solid #3c3836;
-    padding: 8px 16px;
-    min-height: 72px;
-}
-#now-playing-bar .track-title {
+.track-row .track-artist {
     font-size: 13px;
-    font-weight: 700;
-    color: #ebdbb2;
+    color: #b3b3b3;
 }
+
+.track-row .track-duration {
+    font-size: 12px;
+    color: #6a6a6a;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SEARCH BAR
+   ══════════════════════════════════════════════════════════════════ */
+
+searchentry {
+    background-color: #282828;
+    color: #ffffff;
+    border: 2px solid transparent;
+    border-radius: 24px;
+    padding: 12px 20px;
+    font-size: 14px;
+    caret-color: #1db954;
+}
+
+searchentry:focus {
+    background-color: #2a2a2a;
+    border-color: #1db954;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   NOW PLAYING BAR
+   ══════════════════════════════════════════════════════════════════ */
+
+#now-playing-bar {
+    background-color: #181818;
+    border-top: 1px solid #282828;
+    padding: 12px 16px;
+    min-height: 90px;
+}
+
+#now-playing-bar .art-thumb {
+    border-radius: 8px;
+}
+
+#now-playing-bar .track-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
 #now-playing-bar .track-artist {
     font-size: 12px;
-    color: #928374;
+    color: #b3b3b3;
 }
+
+#now-playing-bar .track-duration {
+    font-size: 11px;
+    color: #6a6a6a;
+    font-weight: 500;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   CONTROL BUTTONS
+   ══════════════════════════════════════════════════════════════════ */
+
 #now-playing-bar .control-btn {
     background: transparent;
-    color: #a89984;
+    color: #b3b3b3;
     border: none;
     border-radius: 50%;
-    min-width: 36px;
-    min-height: 36px;
+    min-width: 32px;
+    min-height: 32px;
     padding: 6px;
-    transition: all 120ms ease;
 }
+
 #now-playing-bar .control-btn:hover {
-    background-color: #3c3836;
-    color: #ebdbb2;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
 }
+
+#now-playing-bar .control-btn.active {
+    color: #1db954;
+}
+
 #now-playing-bar .play-btn {
-    background-color: #d79921;
-    color: #282828;
+    background-color: #ffffff;
+    color: #000000;
     border-radius: 50%;
-    min-width: 42px;
-    min-height: 42px;
+    min-width: 40px;
+    min-height: 40px;
     padding: 8px;
 }
-#now-playing-bar .play-btn:hover { background-color: #fabd2f; }
 
-/* Progress slider */
-#now-playing-bar scale {
-    color: #d79921;
+#now-playing-bar .play-btn:hover {
+    background-color: #ffffff;
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   PROGRESS SLIDER
+   ══════════════════════════════════════════════════════════════════ */
+
+#now-playing-bar scale {
+    color: #1db954;
+}
+
 #now-playing-bar scale trough {
-    background-color: #3c3836;
+    background-color: #4d4d4d;
     border-radius: 4px;
     min-height: 4px;
 }
+
 #now-playing-bar scale highlight {
-    background-color: #d79921;
+    background-color: #1db954;
     border-radius: 4px;
 }
+
 #now-playing-bar scale slider {
-    background-color: #fabd2f;
-    min-width: 12px;
-    min-height: 12px;
+    background-color: #ffffff;
+    min-width: 16px;
+    min-height: 16px;
+    margin: 0;
     border-radius: 50%;
     border: none;
-    box-shadow: none;
 }
 
-/* ── Now Playing Full ────────────────────────────── */
+/* Volume slider */
+scale trough {
+    background-color: #4d4d4d;
+    border-radius: 4px;
+    min-height: 4px;
+}
+
+scale highlight {
+    background-color: #b3b3b3;
+    border-radius: 4px;
+}
+
+scale slider {
+    background-color: #ffffff;
+    min-width: 12px;
+    min-height: 12px;
+    margin: 0;
+    border-radius: 50%;
+    border: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   NOW PLAYING FULL
+   ══════════════════════════════════════════════════════════════════ */
+
 #now-playing-full {
-    background-color: #1d2021;
+    background-color: #121212;
 }
+
 #now-playing-full .big-title {
-    font-size: 22px;
+    font-size: 32px;
     font-weight: 800;
-    color: #ebdbb2;
+    color: #ffffff;
 }
+
 #now-playing-full .big-artist {
-    font-size: 15px;
-    color: #a89984;
+    font-size: 18px;
+    color: #b3b3b3;
+    font-weight: 600;
 }
 
-/* ── Lyrics ──────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════
+   LYRICS VIEW
+   ══════════════════════════════════════════════════════════════════ */
+
 #lyrics-view {
-    background-color: #282828;
-    padding: 16px;
-}
-#lyrics-view .lyric-line {
-    font-size: 14px;
-    color: #7c6f64;
-    padding: 4px 0;
-    transition: color 200ms;
-}
-#lyrics-view .lyric-line.active {
-    font-size: 16px;
-    font-weight: 700;
-    color: #fabd2f;
+    background-color: #121212;
+    padding: 24px;
 }
 
-/* ── Scrollbars ──────────────────────────────────── */
+#lyrics-view .lyric-line {
+    font-size: 16px;
+    color: #6a6a6a;
+    padding: 8px 0;
+}
+
+#lyrics-view .lyric-line.active {
+    font-size: 20px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SCROLLBARS
+   ══════════════════════════════════════════════════════════════════ */
+
 scrollbar {
     background-color: transparent;
     border: none;
 }
+
 scrollbar slider {
-    background-color: #504945;
-    border-radius: 4px;
-    min-width: 6px;
-    min-height: 6px;
+    background-color: #2a2a2a;
+    border-radius: 8px;
+    min-width: 8px;
+    min-height: 40px;
 }
-scrollbar slider:hover { background-color: #665c54; }
 
-/* ── Buttons generic ─────────────────────────────── */
+scrollbar slider:hover {
+    background-color: #3e3e3e;
+}
+
+scrollbar.horizontal slider {
+    min-width: 40px;
+    min-height: 8px;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   BUTTONS
+   ══════════════════════════════════════════════════════════════════ */
+
+button {
+    border-radius: 24px;
+    padding: 12px 24px;
+    font-weight: 600;
+    font-size: 14px;
+}
+
 button.suggested-action {
-    background-color: #d79921;
-    color: #282828;
+    background-color: #1db954;
+    color: #ffffff;
+    border: none;
+}
+
+button.suggested-action:hover {
+    background-color: #1ed760;
+}
+
+button.destructive-action {
+    background-color: #e22134;
+    color: #ffffff;
+    border: none;
+}
+
+button.destructive-action:hover {
+    background-color: #ff4757;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   TOOLTIPS
+   ══════════════════════════════════════════════════════════════════ */
+
+tooltip {
+    background-color: #2a2a2a;
+    color: #ffffff;
     border-radius: 8px;
-    font-weight: 700;
-}
-button.suggested-action:hover { background-color: #fabd2f; }
-
-/* ── Tab bar ─────────────────────────────────────── */
-tabbar tab {
-    background: transparent;
-    color: #928374;
-    font-size: 13px;
-    padding: 6px 16px;
-    border-radius: 8px 8px 0 0;
-}
-tabbar tab:checked {
-    background-color: #3c3836;
-    color: #fabd2f;
-    font-weight: 700;
-    border-bottom: 2px solid #d79921;
+    padding: 8px 12px;
+    font-size: 12px;
 }
 
-/* ── Status page (empty states) ──────────────────── */
-statuspage .icon { color: #504945; }
-statuspage .title { color: #7c6f64; }
+/* ══════════════════════════════════════════════════════════════════
+   CONTEXT MENUS
+   ══════════════════════════════════════════════════════════════════ */
 
-/* ── Spinner ─────────────────────────────────────── */
-spinner { color: #d79921; }
+popover {
+    background-color: #2a2a2a;
+    border: 1px solid #3e3e3e;
+    border-radius: 12px;
+    padding: 8px;
+}
 
-/* ── Toast ───────────────────────────────────────── */
-toast {
-    background-color: #3c3836;
-    color: #ebdbb2;
+popover modelbutton {
     border-radius: 8px;
+    padding: 10px 12px;
 }
+
+popover modelbutton:hover {
+    background-color: #282828;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   ACCESSIBILITY
+   ══════════════════════════════════════════════════════════════════ */
+
+*:focus {
+    outline: 2px solid #1db954;
+    outline-offset: 2px;
+}
+
+/* Made with Bob */

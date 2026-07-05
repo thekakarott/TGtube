@@ -2,9 +2,8 @@
 GTube — ui/home_page.py
 Home feed with carousels of music cards (Quick Picks, New Releases, etc.)
 """
-import threading
-import requests
-from gi.repository import Gtk, GLib, GdkPixbuf, Pango
+from gi.repository import Gtk, GLib, Pango
+from ui.utils import load_thumbnail_async
 
 
 def _best_thumb(thumbs: list, size=120) -> str:
@@ -15,20 +14,6 @@ def _best_thumb(thumbs: list, size=120) -> str:
         if abs(t.get("width", 0) - size) < abs(best.get("width", 0) - size):
             best = t
     return best.get("url", "")
-
-
-def _load_thumb(url: str, image: Gtk.Image, size=120):
-    def fetch():
-        try:
-            resp = requests.get(url, timeout=8)
-            loader = GdkPixbuf.PixbufLoader()
-            loader.write(resp.content)
-            loader.close()
-            pb = loader.get_pixbuf().scale_simple(size, size, GdkPixbuf.InterpType.BILINEAR)
-            GLib.idle_add(image.set_from_pixbuf, pb)
-        except Exception:
-            pass
-    threading.Thread(target=fetch, daemon=True).start()
 
 
 class MusicCard(Gtk.Box):
@@ -46,7 +31,7 @@ class MusicCard(Gtk.Box):
         thumbs = item.get("thumbnails") or []
         url = _best_thumb(thumbs, 120)
         if url:
-            _load_thumb(url, img, 120)
+            load_thumbnail_async(url, 120, img.set_from_pixbuf)
 
         title = (item.get("title") or item.get("name") or "Unknown")[:30]
         t = Gtk.Label(label=title)
@@ -100,6 +85,7 @@ class HomePage(Gtk.ScrolledWindow):
         self._ytmusic = ytmusic
         self._player = player
         self._on_navigate = on_navigate
+        self._sections = []  # Store sections for queue building
 
         self._box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
         self._box.set_margin_top(8)
@@ -138,6 +124,9 @@ class HomePage(Gtk.ScrolledWindow):
             self._box.append(lbl)
             return
 
+        # Store sections for queue building
+        self._sections = sections
+
         for section in sections:
             title = section.get("title", "")
             contents = section.get("contents", [])
@@ -147,12 +136,155 @@ class HomePage(Gtk.ScrolledWindow):
             self._box.append(carousel)
 
     def _on_item_click(self, item):
-        kind = item.get("resultType") or ""
-        vid = item.get("videoId")
-        browse = item.get("browseId") or (item.get("album") or {}).get("id")
-
-        if vid:
-            # It's a playable track
-            self._player.play_track(item, queue=[item])
-        elif browse:
-            self._on_navigate("album", browse)
+        """Handle item click with comprehensive error handling and logging."""
+        try:
+            title = item.get('title') or item.get('name') or 'Unknown'
+            print(f"\n[home] ===== Item Clicked =====")
+            print(f"[home] Title: {title}")
+            print(f"[home] Type: {item.get('resultType', 'unknown')}")
+            print(f"[home] Keys: {list(item.keys())}")
+            
+            # Extract all possible identifiers
+            vid = item.get("videoId")
+            browse_id = item.get("browseId")
+            playlist_id = item.get("playlistId")
+            album = item.get("album")
+            
+            print(f"[home] videoId: {vid}")
+            print(f"[home] browseId: {browse_id}")
+            print(f"[home] playlistId: {playlist_id}")
+            print(f"[home] album: {album}")
+            
+            if vid:
+                # It's a playable track
+                print(f"[home] Handling as playable track")
+                self._handle_track_click(item)
+            elif browse_id:
+                # It's an album, artist, or playlist
+                print(f"[home] Handling as browse item (album/artist/playlist)")
+                self._handle_browse_click(item, browse_id)
+            elif playlist_id:
+                # It's a playlist
+                print(f"[home] Handling as playlist")
+                self._handle_playlist_click(item, playlist_id)
+            elif album and isinstance(album, dict) and album.get("id"):
+                # Album nested in item
+                print(f"[home] Handling as nested album")
+                self._handle_browse_click(item, album["id"])
+            else:
+                print(f"[home] WARNING: Item has no playable content or browse ID")
+                print(f"[home] Full item data: {item}")
+                
+        except Exception as e:
+            print(f"[home] ERROR handling item click: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _handle_track_click(self, item):
+        """Handle click on a playable track."""
+        try:
+            # Build queue from current section using videoId comparison
+            queue = self._build_queue_for_item(item)
+            print(f"[home] Playing track with queue of {len(queue)} items")
+            self._player.play_track(item, queue=queue)
+        except Exception as e:
+            print(f"[home] ERROR playing track: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _build_queue_for_item(self, item) -> list[dict]:
+        """Build queue for an item by finding its section.
+        
+        Uses videoId comparison instead of object identity to handle
+        different data structures across sections.
+        """
+        item_vid = item.get("videoId")
+        if not item_vid:
+            print(f"[home] No videoId for item, returning single-item queue")
+            return [item]
+        
+        print(f"[home] Looking for section containing videoId: {item_vid}")
+        
+        # Find the section containing this item
+        for section in getattr(self, '_sections', []):
+            section_title = section.get("title", "Unknown")
+            contents = section.get("contents", [])
+            
+            # Compare by videoId instead of object identity
+            for content in contents:
+                if content.get("videoId") == item_vid:
+                    # Found the section - build queue from all playable items
+                    queue = [c for c in contents if c.get("videoId")]
+                    print(f"[home] ✓ Found section '{section_title}': {len(queue)} playable tracks")
+                    return queue
+        
+        # Fallback to single item
+        print(f"[home] Could not find section for item, using single-item queue")
+        return [item]
+    
+    def _handle_browse_click(self, item, browse_id):
+        """Handle click on album/artist/playlist."""
+        try:
+            print(f"[home] Navigating to browse ID: {browse_id}")
+            self._on_navigate("album", browse_id)
+        except Exception as e:
+            print(f"[home] ERROR navigating to browse item: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _handle_playlist_click(self, item, playlist_id):
+        """Handle click on playlist - load tracks and play first one."""
+        try:
+            print(f"[home] Loading playlist: {playlist_id}")
+            
+            # Show loading state (TODO: add visual spinner)
+            print(f"[home] Fetching playlist tracks...")
+            
+            # Fetch playlist tracks
+            self._ytmusic.get_playlist(playlist_id, self._on_playlist_loaded)
+            
+        except Exception as e:
+            print(f"[home] ERROR handling playlist: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _on_playlist_loaded(self, playlist_data, error):
+        """Handle playlist data loaded from API."""
+        try:
+            if error:
+                print(f"[home] ERROR loading playlist: {error}")
+                return
+            
+            if not playlist_data:
+                print(f"[home] ERROR: No playlist data received")
+                return
+            
+            # Extract tracks from playlist
+            tracks = playlist_data.get("tracks", [])
+            if not tracks:
+                print(f"[home] WARNING: Playlist has no tracks")
+                return
+            
+            print(f"[home] Playlist loaded: {len(tracks)} tracks")
+            print(f"[home] Playlist title: {playlist_data.get('title', 'Unknown')}")
+            
+            # Filter to only playable tracks (those with videoId)
+            playable_tracks = [t for t in tracks if t.get("videoId")]
+            
+            if not playable_tracks:
+                print(f"[home] ERROR: No playable tracks in playlist")
+                return
+            
+            print(f"[home] Found {len(playable_tracks)} playable tracks")
+            
+            # Play first track with full playlist as queue
+            first_track = playable_tracks[0]
+            print(f"[home] Playing first track: {first_track.get('title', 'Unknown')}")
+            
+            # Use GLib.idle_add to ensure we're on the main thread
+            GLib.idle_add(self._player.play_track, first_track, playable_tracks)
+            
+        except Exception as e:
+            print(f"[home] ERROR in _on_playlist_loaded: {e}")
+            import traceback
+            traceback.print_exc()

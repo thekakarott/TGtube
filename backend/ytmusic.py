@@ -137,7 +137,7 @@ class YTMusicClient:
                 ytdlp = next((p for p in ytdlp_paths if shutil.which(p)), "yt-dlp")
                 result = subprocess.run(
                     [ytdlp, "-g", "-f", "bestaudio[ext=m4a]/bestaudio", video_id],
-                    capture_output=True, text=True, timeout=30,
+                    capture_output=True, text=True, timeout=60,
                 )
                 if result.returncode == 0:
                     url = result.stdout.strip()

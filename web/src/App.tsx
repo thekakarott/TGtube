@@ -65,6 +65,7 @@ function AppInner() {
   const [showFull, setShowFull] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [mobileSidebar, setMobileSidebar] = useState(false);
+  const [playbackError, setPlaybackError] = useState("");
   const [shuffle, setShuffle] = useState(() => loadState("gtube-shuffle", false));
   const [repeat, setRepeat] = useState<"off" | "all" | "one">(() => loadState("gtube-repeat", "off"));
   const [playbackSpeed, setPlaybackSpeed] = useState(() => loadState("gtube-speed", 1));
@@ -162,7 +163,7 @@ function AppInner() {
         skipNextRef.current();
       }
     };
-    const onError = () => { setIsPlaying(false); };
+    const onError = () => { setIsPlaying(false); setPlaybackError("Playback failed. Server may be starting up — retry in a few seconds."); setTimeout(() => setPlaybackError(""), 5000); };
     audio.addEventListener("timeupdate", onTime);
     audio.addEventListener("loadedmetadata", onMeta);
     audio.addEventListener("ended", onEnd);
@@ -213,15 +214,29 @@ function AppInner() {
     try {
       audio.pause();
       audio.src = "";
+      // Always use the server proxy — googlevideo URLs are IP-locked to the server
       audio.src = api.streamUrl(trackId);
       audio.load();
       await audio.play();
       setIsPlaying(true);
       return true;
-    } catch (e) {
-      console.error("playback failed", e);
-      setIsPlaying(false);
-      return false;
+    } catch (e: any) {
+      console.error("playback failed:", e?.message || e);
+      // Retry once after a short delay — server may have been cold-starting
+      try {
+        await new Promise(r => setTimeout(r, 2000));
+        audio.src = api.streamUrl(trackId);
+        audio.load();
+        await audio.play();
+        setIsPlaying(true);
+        return true;
+      } catch (e2) {
+        console.error("retry failed:", e2);
+        setPlaybackError("Can't play this track. Server may be cold-starting, try again in 30s.");
+        setTimeout(() => setPlaybackError(""), 8000);
+        setIsPlaying(false);
+        return false;
+      }
     }
   }, []);
 
@@ -556,6 +571,18 @@ function AppInner() {
 
       <ShortcutOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} />
       {contextMenu && <ContextMenu items={contextMenu.items} position={contextMenu.pos} onClose={() => setContextMenu(null)} />}
+      {playbackError && (
+        <div style={{
+          position: "fixed", bottom: 100, left: "50%", transform: "translateX(-50%)",
+          background: "var(--bg-card)", color: "var(--text)",
+          padding: "var(--space-3) var(--space-5)", borderRadius: "var(--radius-full)",
+          boxShadow: "var(--shadow-lg)", border: "1px solid var(--border)",
+          fontSize: "var(--text-sm)", fontWeight: 500, zIndex: "var(--z-toast)",
+          animation: "fadeIn 200ms ease-out",
+        }}>
+          {playbackError}
+        </div>
+      )}
     </div>
   );
 }

@@ -24,7 +24,8 @@ ytmusic = YTMusicClient()
 _stream_cache: dict[str, tuple[str, float]] = {}
 _stream_cache_lock = threading.Lock()
 _STREAM_CACHE_TTL = 3600  # 1 hour
-_STREAM_TIMEOUT_SECONDS = 90
+# Use longer timeout on Render (slower environment)
+_STREAM_TIMEOUT_SECONDS = 180  # 3 minutes for initial resolution
 _STREAM_PROXY_TIMEOUT_SECONDS = 180
 
 
@@ -169,10 +170,14 @@ def get_stream_url():
     except ValueError:
         timeout_seconds = _STREAM_TIMEOUT_SECONDS
 
-    url = _get_stream_url(video_id, timeout_seconds=timeout_seconds)
-    if not url:
-        return jsonify({"error": "Could not get stream URL"}), 500
-    return jsonify({"url": url})
+    try:
+        url = _get_stream_url(video_id, timeout_seconds=timeout_seconds)
+        if not url:
+            return jsonify({"error": "Could not get stream URL after timeout"}), 504
+        return jsonify({"url": url})
+    except Exception as e:
+        print(f"[stream-url] exception: {e}")
+        return jsonify({"error": f"Stream resolution error: {str(e)}"}), 500
 
 
 @app.route("/api/stream/<video_id>", methods=["GET", "OPTIONS"])

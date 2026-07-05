@@ -3,7 +3,7 @@ services:
     name: gtube-api
     runtime: python
     rootDir: .
-    buildCommand: pip install -r requirements-cloud.txt
+    buildCommand: pip install -r requirements-cloud.txt && python -m pip install --upgrade yt-dlp && which yt-dlp
     startCommand: cd backend && python -m server --production
     envVars:
       - key: CORS_ORIGIN

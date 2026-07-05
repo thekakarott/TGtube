@@ -489,4 +489,13 @@ aside, nav, button, .no-select {
     padding-left: var(--space-4) !important;
     padding-right: var(--space-4) !important;
   }
+  /* Main content area */
+  main {
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+  /* Fix header text overflow on mobile */
+  h1 {
+    font-size: var(--text-2xl) !important;
+  }
 }

@@ -38,8 +38,9 @@ def _get_stream_url(video_id: str) -> str | None:
         result["err"] = err
         event.set()
     ytmusic.get_stream_url(video_id, cb)
-    event.wait(30)
+    event.wait(60)
     if result.get("err") or not result.get("url"):
+        print(f"[stream] failed for {video_id}: {result.get('err', 'timeout')}")
         return None
     with _stream_cache_lock:
         _stream_cache[video_id] = (result["url"], time.time())

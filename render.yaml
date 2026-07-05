@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: gtube-api
+    runtime: python
+    rootDir: .
+    buildCommand: pip install -r requirements-cloud.txt
+    startCommand: cd backend && python -m server --production
+    envVars:
+      - key: CORS_ORIGIN
+        sync: false

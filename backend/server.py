@@ -11,7 +11,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from backend.ytmusic import YTMusicClient
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=os.environ.get("CORS_ORIGIN", "*").split(","))
+
+
+@app.route("/api/health")
+def health():
+    return jsonify({"status": "ok"})
 
 ytmusic = YTMusicClient()
 
@@ -292,16 +297,18 @@ def get_artist_songs():
     return jsonify(data or {})
 
 
-def run_server(port=8765, production=False):
+def run_server(port=None, production=False):
+    if port is None:
+        port = int(os.environ.get("PORT", 8765))
     if production:
         try:
             from waitress import serve
-            serve(app, host="127.0.0.1", port=port)
+            serve(app, host="0.0.0.0", port=port)
         except ImportError:
             print("waitress not installed, falling back to Flask dev server")
-            app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False)
+            app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
     else:
-        app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False)
+        app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
 
 if __name__ == "__main__":

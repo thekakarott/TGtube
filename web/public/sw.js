@@ -1,4 +1,4 @@
-const CACHE = "gtube-v1";
+const CACHE = "gtube-v2";
 const ASSETS = ["/", "/index.html"];
 
 self.addEventListener("install", (e) => {

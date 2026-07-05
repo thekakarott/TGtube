@@ -51,8 +51,8 @@ export default function PlaylistDetailPage({
   return (
     <div style={{ padding: "var(--space-6)" }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-end", gap: "var(--space-6)", marginBottom: "var(--space-8)", flexWrap: "wrap" }}>
-        <div style={{
+      <div className="responsive-header-row" style={{ display: "flex", alignItems: "flex-end", gap: "var(--space-6)", marginBottom: "var(--space-8)", flexWrap: "wrap" }}>
+        <div className="responsive-header-img" style={{
           width: 200, height: 200, borderRadius: "var(--radius-md)", flexShrink: 0,
           background: "var(--bg-highlight)", display: "flex", alignItems: "center",
           justifyContent: "center", overflow: "hidden",

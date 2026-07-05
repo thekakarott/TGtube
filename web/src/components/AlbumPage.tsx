@@ -53,8 +53,8 @@ export default function AlbumPage({ browseId, onPlay, onContextMenu, onBack }: P
       }}>
         <button onClick={onBack} style={backBtn}>Back</button>
 
-        <div style={{ display: "flex", gap: "var(--space-8)", marginTop: "var(--space-5)", alignItems: "flex-end" }}>
-          <div style={{
+        <div className="responsive-header-row" style={{ display: "flex", gap: "var(--space-8)", marginTop: "var(--space-5)", alignItems: "flex-end" }}>
+          <div className="responsive-header-img" style={{
             width: 232, height: 232,
             borderRadius: "var(--radius-md)",
             overflow: "hidden",

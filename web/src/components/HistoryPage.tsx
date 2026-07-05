@@ -65,6 +65,7 @@ export default function HistoryPage({ onPlay }: { onPlay: (tracks: any[], idx: n
               color: "var(--text)",
               fontSize: "var(--text-base)",
               width: 200,
+              maxWidth: "100%",
             }}
           />
           {history.length > 0 && (

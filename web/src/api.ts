@@ -1,4 +1,5 @@
-const API = import.meta.env.VITE_API_URL || "http://127.0.0.1:8765/api";
+const _BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8765";
+const API = _BASE.endsWith("/api") ? _BASE : `${_BASE}/api`;
 
 export function getThumbUrl(videoId: string, thumbs: any[]): string {
   if (videoId) return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;

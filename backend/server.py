@@ -36,6 +36,7 @@ def _get_stream_url(video_id: str, timeout_seconds: int = _STREAM_TIMEOUT_SECOND
         with _stream_cache_lock:
             cached = _stream_cache.get(video_id)
             if cached and time.time() - cached[1] < _STREAM_CACHE_TTL:
+                print(f"[stream] cache hit for {video_id}")
                 return cached[0]
 
     result = {}
@@ -46,6 +47,7 @@ def _get_stream_url(video_id: str, timeout_seconds: int = _STREAM_TIMEOUT_SECOND
         result["err"] = err
         event.set()
 
+    print(f"[stream] fetching stream URL for {video_id} (timeout: {timeout_seconds}s)")
     ytmusic.get_stream_url(video_id, cb)
     if not event.wait(timeout_seconds):
         print(f"[stream] timeout for {video_id} after {timeout_seconds}s")
@@ -60,6 +62,7 @@ def _get_stream_url(video_id: str, timeout_seconds: int = _STREAM_TIMEOUT_SECOND
         print(f"[stream] no URL returned for {video_id}")
         return None
 
+    print(f"[stream] successfully resolved {video_id}")
     with _stream_cache_lock:
         _stream_cache[video_id] = (url, time.time())
     return url

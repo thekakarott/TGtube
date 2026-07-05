@@ -130,26 +130,34 @@ class YTMusicClient:
                         best_format = max(formats, key=lambda f: f.get('bitrate', 0))
                         url = best_format.get('url')
                         if url:
+                            print(f"[stream] got URL from ytmusicapi for {video_id}")
                             return url
 
                 # Fallback: use yt-dlp to extract direct audio URL
-                ytdlp_paths = ["yt-dlp", "/home/linuxbrew/.linuxbrew/bin/yt-dlp"]
-                ytdlp = next((p for p in ytdlp_paths if shutil.which(p)), "yt-dlp")
+                import sys
+                ytdlp_paths = ["yt-dlp", "/home/linuxbrew/.linuxbrew/bin/yt-dlp", f"{sys.prefix}/bin/yt-dlp"]
+                ytdlp = next((p for p in ytdlp_paths if shutil.which(p)), None)
+                
+                if not ytdlp:
+                    raise RuntimeError(f"yt-dlp not found in PATH or common locations: {ytdlp_paths}")
+                
+                print(f"[stream] using yt-dlp at: {ytdlp}")
                 result = subprocess.run(
                     [ytdlp, "-g", "-f", "bestaudio[ext=m4a]/bestaudio", video_id],
                     capture_output=True, text=True, timeout=180,
                 )
                 if result.returncode != 0:
                     stderr = result.stderr.strip() or result.stdout.strip() or "yt-dlp failed"
-                    raise RuntimeError(stderr)
+                    raise RuntimeError(f"yt-dlp error (code {result.returncode}): {stderr}")
 
                 url = result.stdout.strip()
                 if url:
+                    print(f"[stream] got URL from yt-dlp for {video_id}")
                     return url
 
                 raise RuntimeError("yt-dlp returned no stream URL")
             except Exception as e:
-                print(f"[ytmusic] get_stream_url error: {e}")
+                print(f"[ytmusic] get_stream_url error for {video_id}: {e}")
                 raise RuntimeError(str(e)) from e
         self._run_async(fn, callback)
     # ------------------------------------------------------------------

@@ -24,27 +24,45 @@ ytmusic = YTMusicClient()
 _stream_cache: dict[str, tuple[str, float]] = {}
 _stream_cache_lock = threading.Lock()
 _STREAM_CACHE_TTL = 3600  # 1 hour
+_STREAM_TIMEOUT_SECONDS = 90
+_STREAM_PROXY_TIMEOUT_SECONDS = 180
 
-def _get_stream_url(video_id: str) -> str | None:
-    with _stream_cache_lock:
-        cached = _stream_cache.get(video_id)
-        if cached and time.time() - cached[1] < _STREAM_CACHE_TTL:
-            return cached[0]
+
+def _get_stream_url(video_id: str, timeout_seconds: int = _STREAM_TIMEOUT_SECONDS, bypass_cache: bool = False) -> str | None:
+    if not video_id:
+        return None
+
+    if not bypass_cache:
+        with _stream_cache_lock:
+            cached = _stream_cache.get(video_id)
+            if cached and time.time() - cached[1] < _STREAM_CACHE_TTL:
+                return cached[0]
 
     result = {}
     event = threading.Event()
+
     def cb(url, err):
         result["url"] = url
         result["err"] = err
         event.set()
+
     ytmusic.get_stream_url(video_id, cb)
-    event.wait(60)
-    if result.get("err") or not result.get("url"):
-        print(f"[stream] failed for {video_id}: {result.get('err', 'timeout')}")
+    if not event.wait(timeout_seconds):
+        print(f"[stream] timeout for {video_id} after {timeout_seconds}s")
         return None
+
+    if result.get("err"):
+        print(f"[stream] failed for {video_id}: {result.get('err')}")
+        return None
+
+    url = result.get("url")
+    if not url:
+        print(f"[stream] no URL returned for {video_id}")
+        return None
+
     with _stream_cache_lock:
-        _stream_cache[video_id] = (result["url"], time.time())
-    return result["url"]
+        _stream_cache[video_id] = (url, time.time())
+    return url
 
 
 def _sync_search(q: str, filter: str | None = None) -> tuple:
@@ -141,7 +159,14 @@ def get_stream_url():
     video_id = request.args.get("videoId", "")
     if not video_id:
         return jsonify({"error": "Missing videoId"}), 400
-    url = _get_stream_url(video_id)
+
+    timeout_value = request.args.get("timeout", str(_STREAM_TIMEOUT_SECONDS))
+    try:
+        timeout_seconds = max(10, min(300, int(timeout_value)))
+    except ValueError:
+        timeout_seconds = _STREAM_TIMEOUT_SECONDS
+
+    url = _get_stream_url(video_id, timeout_seconds=timeout_seconds)
     if not url:
         return jsonify({"error": "Could not get stream URL"}), 500
     return jsonify({"url": url})
@@ -162,7 +187,7 @@ def stream_audio(video_id):
         if "Range" in request.headers:
             headers["Range"] = request.headers["Range"]
 
-        resp = requests.get(url, stream=True, timeout=120, headers=headers)
+        resp = requests.get(url, stream=True, timeout=_STREAM_PROXY_TIMEOUT_SECONDS, headers=headers)
         resp.raise_for_status()
 
         response_headers = {
@@ -185,8 +210,12 @@ def stream_audio(video_id):
             status=status,
             headers=response_headers,
         )
+    except requests.Timeout as e:
+        return jsonify({"error": f"Stream proxy timed out: {e}"}), 504
+    except requests.RequestException as e:
+        return jsonify({"error": f"Stream proxy request failed: {e}"}), 502
     except Exception as e:
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": f"Stream proxy failed: {e}"}), 502
 
 
 @app.route("/api/lyrics")

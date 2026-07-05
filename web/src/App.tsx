@@ -211,28 +211,31 @@ function AppInner() {
   const playStream = useCallback(async (trackId: string): Promise<boolean> => {
     const audio = audioRef.current;
     if (!audio) return false;
+
     try {
       audio.pause();
       audio.src = "";
-      // Always use the server proxy — googlevideo URLs are IP-locked to the server
-      audio.src = api.streamUrl(trackId);
+
+      const resolvedUrl = await api.getStreamUrl(trackId);
+      audio.src = resolvedUrl;
       audio.load();
       await audio.play();
       setIsPlaying(true);
       return true;
-    } catch (e: any) {
-      console.error("playback failed:", e?.message || e);
-      // Retry once after a short delay — server may have been cold-starting
+    } catch (primaryError: any) {
+      console.warn("primary stream resolution failed, falling back to proxy:", primaryError?.message || primaryError);
       try {
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        audio.pause();
+        audio.src = "";
         audio.src = api.streamUrl(trackId);
         audio.load();
         await audio.play();
         setIsPlaying(true);
         return true;
-      } catch (e2) {
-        console.error("retry failed:", e2);
-        setPlaybackError("Can't play this track. Server may be cold-starting, try again in 30s.");
+      } catch (fallbackError) {
+        console.error("playback failed:", fallbackError);
+        setPlaybackError("Can't play this track right now. Please try again in a moment.");
         setTimeout(() => setPlaybackError(""), 8000);
         setIsPlaying(false);
         return false;
@@ -473,15 +476,20 @@ function AppInner() {
       flexDirection: "column",
       background: "var(--bg-elevated)",
       color: "var(--text)",
+      minWidth: 0,
+      width: "100%",
     }}>
       <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
         <Sidebar page={page.name} onNavigate={(name) => navigate({ name: name as any, ...(name === "search" ? { query: "" } : {}) } as Page)} mobileOpen={mobileSidebar} onMobileClose={() => setMobileSidebar(false)} />
         <main style={{
           flex: 1,
+          minWidth: 0,
           overflowY: "auto",
+          overflowX: "hidden",
           background: "var(--bg-elevated)",
           borderRadius: "var(--radius-lg) var(--radius-lg) 0 0",
           margin: "var(--space-2) var(--space-2) 0 0",
+          paddingBottom: "calc(var(--playerbar-height) + var(--space-6))",
         }}>
           {/* Mobile hamburger */}
           <button

@@ -137,18 +137,20 @@ class YTMusicClient:
                 ytdlp = next((p for p in ytdlp_paths if shutil.which(p)), "yt-dlp")
                 result = subprocess.run(
                     [ytdlp, "-g", "-f", "bestaudio[ext=m4a]/bestaudio", video_id],
-                    capture_output=True, text=True, timeout=60,
+                    capture_output=True, text=True, timeout=180,
                 )
-                if result.returncode == 0:
-                    url = result.stdout.strip()
-                    if url:
-                        return url
+                if result.returncode != 0:
+                    stderr = result.stderr.strip() or result.stdout.strip() or "yt-dlp failed"
+                    raise RuntimeError(stderr)
 
-                print(f"[ytmusic] Failed to get stream URL for {video_id}")
-                return None
+                url = result.stdout.strip()
+                if url:
+                    return url
+
+                raise RuntimeError("yt-dlp returned no stream URL")
             except Exception as e:
                 print(f"[ytmusic] get_stream_url error: {e}")
-                return None
+                raise RuntimeError(str(e)) from e
         self._run_async(fn, callback)
     # ------------------------------------------------------------------
     # Lyrics

@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Track } from "../api";
 import SleepTimer from "./SleepTimer";
 
@@ -38,6 +39,90 @@ export default function NowPlayingBar({
   onPlayPause, onNext, onPrev, onSeek, onVolumeChange, onShuffle, onRepeat, onPlaybackSpeedChange, onNormalizationToggle, onRadioModeToggle, onCrossfadeToggle, onExpand, onSleepExpire,
 }: Props) {
   const pct = duration > 0 ? (position / duration) * 100 : 0;
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const seekRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const handleTouchSeek = useCallback((e: React.TouchEvent) => {
+    const rect = seekRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const touch = e.touches[0];
+    onSeek(((touch.clientX - rect.left) / rect.width) * duration);
+  }, [onSeek, duration]);
+
+  if (isMobile) {
+    return (
+      <div style={{
+        height: "var(--playerbar-height)",
+        background: "var(--bg-card)",
+        borderTop: "1px solid var(--border)",
+        display: "flex",
+        flexDirection: "column",
+        padding: "0",
+        flexShrink: 0,
+        zIndex: "var(--z-fixed)",
+      }}>
+        {/* Seek bar on top */}
+        <div
+          ref={seekRef}
+          style={{ width: "100%", height: 3, background: "var(--border-subtle)", cursor: "pointer", flexShrink: 0 }}
+          onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); onSeek(((e.clientX - r.left) / r.width) * duration); }}
+          onTouchMove={handleTouchSeek}
+        >
+          <div style={{ width: `${pct}%`, height: "100%", background: "var(--accent)", borderRadius: 1 }} />
+        </div>
+        {/* Track info + controls */}
+        <div style={{ flex: 1, display: "flex", alignItems: "center", padding: "0 var(--space-3)", gap: "var(--space-3)" }}>
+          <div onClick={onExpand} style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flex: 1, minWidth: 0, cursor: "pointer" }}>
+            <div style={{
+              width: 44, height: 44,
+              borderRadius: "var(--radius-sm)",
+              overflow: "hidden",
+              flexShrink: 0,
+              background: "var(--bg-highlight)",
+            }}>
+              {track.album_art ? (
+                <img src={track.album_art} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)" }}>
+                  <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                </div>
+              )}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track.title}</div>
+              <div style={{ fontSize: "var(--text-xs)", color: "var(--text-sub)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track.artist}</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+            <button onClick={onPrev} style={{ ...s.btn, width: 32, height: 32 }}>
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+            </button>
+            <button onClick={onPlayPause} style={{
+              ...s.btn,
+              width: 40, height: 40, borderRadius: "50%",
+              background: "#fff", color: "#000",
+            }}>
+              <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                {isPlaying
+                  ? <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+                  : <path d="M8 5v14l11-7z"/>
+                }
+              </svg>
+            </button>
+            <button onClick={onNext} style={{ ...s.btn, width: 32, height: 32 }}>
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{

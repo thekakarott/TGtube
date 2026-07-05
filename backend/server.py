@@ -172,8 +172,17 @@ def get_stream_url():
     return jsonify({"url": url})
 
 
-@app.route("/api/stream/<video_id>")
+@app.route("/api/stream/<video_id>", methods=["GET", "OPTIONS"])
 def stream_audio(video_id):
+    # Handle CORS preflight requests
+    if request.method == "OPTIONS":
+        response = Response()
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Range"
+        response.headers["Access-Control-Max-Age"] = "3600"
+        return response, 204
+
     url = _get_stream_url(video_id)
     if not url:
         return jsonify({"error": "Could not get stream URL"}), 500
@@ -194,6 +203,9 @@ def stream_audio(video_id):
             "Accept-Ranges": "bytes",
             "Cache-Control": "no-cache",
             "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Range",
+            "Access-Control-Expose-Headers": "Content-Length, Content-Range, Content-Type",
         }
         ct = resp.headers.get("content-type", "audio/webm")
         response_headers["Content-Type"] = ct

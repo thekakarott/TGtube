@@ -460,3 +460,33 @@ aside, nav, button, .no-select {
     display: flex !important;
   }
 }
+
+/* Responsive grids on mobile */
+@media (max-width: 768px) {
+  .responsive-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
+    gap: var(--space-3) !important;
+  }
+  .responsive-header-row {
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    gap: var(--space-4) !important;
+  }
+  .responsive-header-img {
+    width: min(200px, 60vw) !important;
+    height: min(200px, 60vw) !important;
+  }
+  .responsive-2col {
+    grid-template-columns: 1fr !important;
+  }
+  /* Global: force all grids to collapse on mobile */
+  div[style*="grid-template-columns"] {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
+  }
+  /* Global: reduce page padding */
+  main > div[style*="padding"] {
+    padding-left: var(--space-4) !important;
+    padding-right: var(--space-4) !important;
+  }
+}

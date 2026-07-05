@@ -6,11 +6,11 @@ export default function FavoritesPage({ onPlay }: { onPlay: (tracks: any[], idx:
 
   return (
     <div style={{ padding: "var(--space-6)" }}>
-      <div style={{
+      <div className="responsive-header-row" style={{
         display: "flex", alignItems: "flex-end", gap: "var(--space-6)",
         marginBottom: "var(--space-8)", flexWrap: "wrap",
       }}>
-        <div style={{
+        <div className="responsive-header-img" style={{
           width: 200, height: 200, borderRadius: "var(--radius-md)",
           background: "linear-gradient(135deg, #450af5, #c4efd9)",
           display: "flex", alignItems: "center", justifyContent: "center",

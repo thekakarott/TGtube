@@ -213,25 +213,15 @@ function AppInner() {
     try {
       audio.pause();
       audio.src = "";
-      const url = await api.getStreamUrl(trackId);
-      if (!url) throw new Error("No URL");
-      audio.src = url;
-      audio.currentTime = 0;
+      audio.src = api.streamUrl(trackId);
+      audio.load();
       await audio.play();
       setIsPlaying(true);
       return true;
-    } catch {
-      try {
-        audio.src = api.streamUrl(trackId);
-        audio.currentTime = 0;
-        await audio.play();
-        setIsPlaying(true);
-        return true;
-      } catch (e) {
-        console.error("playback failed", e);
-        setIsPlaying(false);
-        return false;
-      }
+    } catch (e) {
+      console.error("playback failed", e);
+      setIsPlaying(false);
+      return false;
     }
   }, []);
 

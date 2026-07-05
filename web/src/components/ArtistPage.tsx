@@ -65,8 +65,8 @@ export default function ArtistPage({ channelId, onPlay, onPlayAlbum, onBack }: P
       }}>
         <button onClick={onBack} style={backBtn}>Back</button>
 
-        <div style={{ marginTop: "var(--space-5)", display: "flex", gap: "var(--space-8)", alignItems: "flex-end" }}>
-          <div style={{
+        <div className="responsive-header-row" style={{ marginTop: "var(--space-5)", display: "flex", gap: "var(--space-8)", alignItems: "flex-end" }}>
+          <div className="responsive-header-img" style={{
             width: 208, height: 208,
             borderRadius: "50%",
             overflow: "hidden",

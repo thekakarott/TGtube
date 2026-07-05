@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { usePlaylists } from "../lib/store";
 
 type Page = "home" | "search" | "favorites" | "history" | "playlist-list" | "stats" | "settings";
@@ -12,16 +13,28 @@ const libraryNav: { id: Page; label: string; icon: string }[] = [
   { id: "favorites", label: "Liked Songs", icon: "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" },
 ];
 
-export default function Sidebar({ page, onNavigate }: { page: string; onNavigate: (p: Page) => void }) {
+export default function Sidebar({ page, onNavigate, mobileOpen, onMobileClose }: { page: string; onNavigate: (p: Page) => void; mobileOpen?: boolean; onMobileClose?: () => void }) {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   let playlists: any[] = [];
   try {
     const store = usePlaylists();
     playlists = store.playlists;
   } catch {}
 
-  return (
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const handleNav = (id: Page) => {
+    onNavigate(id);
+    onMobileClose?.();
+  };
+
+  const sidebarContent = (
     <aside style={{
-      width: "var(--sidebar-width)",
+      width: isMobile ? 260 : "var(--sidebar-width)",
       background: "var(--bg-base)",
       display: "flex",
       flexDirection: "column",
@@ -29,9 +42,27 @@ export default function Sidebar({ page, onNavigate }: { page: string; onNavigate
       padding: "var(--space-6) 0",
       gap: "var(--space-6)",
       overflowY: "auto",
+      ...(isMobile ? {
+        position: "fixed" as const,
+        top: 0,
+        left: 0,
+        bottom: 0,
+        zIndex: 400,
+        boxShadow: "4px 0 24px rgba(0,0,0,0.5)",
+        transform: mobileOpen ? "translateX(0)" : "translateX(-100%)",
+        transition: "transform 250ms cubic-bezier(0.4, 0, 0.2, 1)",
+      } : {}),
     }}>
-      <div style={{ padding: "0 var(--space-6)" }}>
+      <div style={{ padding: "0 var(--space-6)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <h1 style={{ fontSize: "var(--text-xl)", fontWeight: 800, color: "var(--text)" }}>GTube</h1>
+        {isMobile && (
+          <button onClick={onMobileClose} style={{
+            background: "transparent", border: "none", color: "var(--text-sub)",
+            cursor: "pointer", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+        )}
       </div>
       <nav style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)", padding: "0 var(--space-3)" }}>
         {nav.map((item) => {
@@ -39,7 +70,7 @@ export default function Sidebar({ page, onNavigate }: { page: string; onNavigate
           return (
             <button
               key={item.id}
-              onClick={() => onNavigate(item.id)}
+              onClick={() => handleNav(item.id)}
               style={{
                 width: "100%",
                 display: "flex",
@@ -84,7 +115,7 @@ export default function Sidebar({ page, onNavigate }: { page: string; onNavigate
           return (
             <button
               key={item.id}
-              onClick={() => onNavigate(item.id)}
+              onClick={() => handleNav(item.id)}
               style={{
                 width: "100%",
                 display: "flex",
@@ -125,7 +156,7 @@ export default function Sidebar({ page, onNavigate }: { page: string; onNavigate
             Playlists
           </span>
           <button
-            onClick={() => onNavigate("playlist-list")}
+            onClick={() => handleNav("playlist-list")}
             style={{
               background: "none", border: "none", color: "var(--text-dim)",
               cursor: "pointer", fontSize: "var(--text-lg)", padding: 0, lineHeight: 1,
@@ -141,7 +172,7 @@ export default function Sidebar({ page, onNavigate }: { page: string; onNavigate
         {playlists.slice(0, 5).map((pl) => (
           <button
             key={pl.id}
-            onClick={() => onNavigate({ name: "playlist-detail", playlistId: pl.id } as any)}
+            onClick={() => handleNav({ name: "playlist-detail", playlistId: pl.id } as any)}
             style={{
               width: "100%", display: "flex", alignItems: "center", gap: "var(--space-3)",
               padding: "var(--space-2) var(--space-3)", borderRadius: "var(--radius-md)",
@@ -171,7 +202,7 @@ export default function Sidebar({ page, onNavigate }: { page: string; onNavigate
         ))}
         {playlists.length > 5 && (
           <button
-            onClick={() => onNavigate("playlist-list")}
+            onClick={() => handleNav("playlist-list")}
             style={{
               width: "100%", display: "flex", alignItems: "center",
               padding: "var(--space-2) var(--space-3)", borderRadius: "var(--radius-md)",
@@ -186,7 +217,7 @@ export default function Sidebar({ page, onNavigate }: { page: string; onNavigate
 
       <div style={{ padding: "0 var(--space-6)" }}>
         <button
-          onClick={() => onNavigate("stats")}
+          onClick={() => handleNav("stats")}
           style={{
             width: "100%", display: "flex", alignItems: "center", gap: "var(--space-4)",
             padding: "var(--space-2) var(--space-3)", borderRadius: "var(--radius-md)",
@@ -205,7 +236,7 @@ export default function Sidebar({ page, onNavigate }: { page: string; onNavigate
           Stats
         </button>
         <button
-          onClick={() => onNavigate("settings")}
+          onClick={() => handleNav("settings")}
           style={{
             width: "100%", display: "flex", alignItems: "center", gap: "var(--space-4)",
             padding: "var(--space-2) var(--space-3)", borderRadius: "var(--radius-md)",
@@ -227,4 +258,15 @@ export default function Sidebar({ page, onNavigate }: { page: string; onNavigate
       </div>
     </aside>
   );
+
+  if (isMobile) {
+    return (
+      <>
+        {mobileOpen && <div className="sidebar-overlay" onClick={onMobileClose} />}
+        {sidebarContent}
+      </>
+    );
+  }
+
+  return sidebarContent;
 }

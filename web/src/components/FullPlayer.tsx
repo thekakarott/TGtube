@@ -257,6 +257,25 @@ export default function FullPlayer({
                   window.addEventListener("mousemove", onMove);
                   window.addEventListener("mouseup", onUp);
                 }}
+                onTouchStart={(e) => {
+                  setSeekDragging(true);
+                  const r = e.currentTarget.getBoundingClientRect();
+                  const update = (ev: TouchEvent) => {
+                    const pct = Math.max(0, Math.min(100, ((ev.touches[0].clientX - r.left) / r.width) * 100));
+                    setSeekPct(pct);
+                  };
+                  update(e as any);
+                  const onMove = (ev: TouchEvent) => update(ev);
+                  const onEnd = (ev: TouchEvent) => {
+                    setSeekDragging(false);
+                    const pct = Math.max(0, Math.min(100, ((ev.changedTouches[0].clientX - r.left) / r.width) * 100));
+                    onSeek((pct / 100) * duration);
+                    window.removeEventListener("touchmove", onMove);
+                    window.removeEventListener("touchend", onEnd);
+                  };
+                  window.addEventListener("touchmove", onMove);
+                  window.addEventListener("touchend", onEnd);
+                }}
               >
                 <div style={{
                   width: `${displayPct}%`, height: "100%", borderRadius: 2,
@@ -353,6 +372,11 @@ export default function FullPlayer({
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
                     onVolumeChange(Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100)));
+                  }}
+                  onTouchEnd={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const touch = e.changedTouches[0];
+                    onVolumeChange(Math.max(0, Math.min(100, ((touch.clientX - rect.left) / rect.width) * 100)));
                   }}
                 >
                   <div style={{ width: `${volume}%`, height: "100%", borderRadius: 2, background: "rgba(255,255,255,0.6)", transition: "width var(--transition-fast)" }} />

@@ -412,3 +412,51 @@ aside, nav, button, .no-select {
     --glass-blur-heavy: none;
   }
 }
+
+/* ── Mobile Responsive ─────────────────────────── */
+
+@media (max-width: 768px) {
+  :root {
+    --sidebar-width: 0px;
+    --playerbar-height: 64px;
+    --text-base: 14px;
+    --text-lg: 16px;
+    --text-xl: 18px;
+    --text-2xl: 22px;
+  }
+}
+
+/* Sidebar overlay on mobile */
+.sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 350;
+    animation: fadeIn 200ms ease-out;
+  }
+}
+
+/* Hide scrollbar on mobile touch */
+@media (hover: none) {
+  ::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+}
+
+/* Mobile hamburger button */
+.mobile-hamburger {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .mobile-hamburger {
+    display: flex !important;
+  }
+}

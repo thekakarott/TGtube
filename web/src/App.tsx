@@ -64,6 +64,7 @@ function AppInner() {
   const [volume, setVolume] = useState(loadVolume);
   const [showFull, setShowFull] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [mobileSidebar, setMobileSidebar] = useState(false);
   const [shuffle, setShuffle] = useState(() => loadState("gtube-shuffle", false));
   const [repeat, setRepeat] = useState<"off" | "all" | "one">(() => loadState("gtube-repeat", "off"));
   const [playbackSpeed, setPlaybackSpeed] = useState(() => loadState("gtube-speed", 1));
@@ -469,7 +470,7 @@ function AppInner() {
       color: "var(--text)",
     }}>
       <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-        <Sidebar page={page.name} onNavigate={(name) => navigate({ name: name as any, ...(name === "search" ? { query: "" } : {}) } as Page)} />
+        <Sidebar page={page.name} onNavigate={(name) => navigate({ name: name as any, ...(name === "search" ? { query: "" } : {}) } as Page)} mobileOpen={mobileSidebar} onMobileClose={() => setMobileSidebar(false)} />
         <main style={{
           flex: 1,
           overflowY: "auto",
@@ -477,6 +478,33 @@ function AppInner() {
           borderRadius: "var(--radius-lg) var(--radius-lg) 0 0",
           margin: "var(--space-2) var(--space-2) 0 0",
         }}>
+          {/* Mobile hamburger */}
+          <button
+            onClick={() => setMobileSidebar(true)}
+            style={{
+              position: "sticky",
+              top: 0,
+              left: 0,
+              zIndex: 10,
+              display: "none",
+              background: "rgba(18,18,18,0.9)",
+              backdropFilter: "blur(8px)",
+              border: "none",
+              color: "var(--text)",
+              cursor: "pointer",
+              padding: "var(--space-3) var(--space-4)",
+              width: "100%",
+              textAlign: "left",
+              fontSize: "var(--text-base)",
+              fontWeight: 600,
+              alignItems: "center",
+              gap: "var(--space-2)",
+            }}
+            className="mobile-hamburger"
+          >
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+            Menu
+          </button>
           {mainContent()}
         </main>
       </div>

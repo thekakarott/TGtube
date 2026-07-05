@@ -153,7 +153,11 @@ def stream_audio(video_id):
         return jsonify({"error": "Could not get stream URL"}), 500
 
     try:
-        headers = {}
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "Referer": "https://music.youtube.com/",
+            "Origin": "https://music.youtube.com",
+        }
         if "Range" in request.headers:
             headers["Range"] = request.headers["Range"]
 

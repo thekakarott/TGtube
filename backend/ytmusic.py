@@ -119,8 +119,147 @@ class YTMusicClient:
     # Streaming
     # ------------------------------------------------------------------
 
+    _INNERTUBE_API_KEY = "AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX3"
+    _INNERTUBE_BASE = "https://music.youtube.com/youtubei/v1"
+
+    # Client configs from Metrolist/InnerTune — different YouTube clients have
+    # different blocking policies. We try multiple to maximize success from
+    # datacenter IPs.
+    _CLIENTS = [
+        {
+            "name": "ANDROID",
+            "version": "21.03.38",
+            "id": "3",
+            "ua": "com.google.android.youtube/21.03.38 (Linux; U; Android 14) gzip",
+        },
+        {
+            "name": "ANDROID_VR",
+            "version": "1.61.48",
+            "id": "28",
+            "ua": "com.google.android.apps.youtube.vr.oculus/1.61.48 (Linux; U; Android 12; en_US; Oculus Quest 3; Build/SQ3A.220605.009.A1; Cronet/132.0.6808.3)",
+        },
+        {
+            "name": "ANDROID_CREATOR",
+            "version": "25.03.101",
+            "id": "14",
+            "ua": "com.google.android.apps.youtube.creator/25.03.101 (Linux; U; Android 15; en_US; Pixel 9 Pro Fold; Build/AP3A.241005.015.A2; Cronet/132.0.6779.0)",
+        },
+        {
+            "name": "WEB_REMIX",
+            "version": "1.20260213.01.00",
+            "id": "67",
+            "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0",
+        },
+        {
+            "name": "TVHTML5_SIMPLY_EMBEDDED_PLAYER",
+            "version": "2.0",
+            "id": "85",
+            "ua": "Mozilla/5.0 (PlayStation; PlayStation 4/12.02) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Safari/605.1.15",
+        },
+    ]
+
+    def _try_innertube(self, video_id: str) -> str | None:
+        """
+        Direct InnerTube player API call — same approach as Metrolist/InnerTune.
+        Uses multiple client types since some may be less restricted from
+        datacenter IPs.
+        """
+        for client in self._CLIENTS:
+            try:
+                url = f"{self._INNERTUBE_BASE}/player?key={self._INNERTUBE_API_KEY}&prettyPrint=false"
+
+                body = {
+                    "context": {
+                        "client": {
+                            "clientName": client["name"],
+                            "clientVersion": client["version"],
+                            "hl": "en",
+                            "gl": "US",
+                        }
+                    },
+                    "videoId": video_id,
+                    "playbackContext": {
+                        "contentPlaybackContext": {
+                            "signatureTimestamp": 19495,
+                        }
+                    },
+                    "contentCheckOk": True,
+                    "racyCheckOk": True,
+                }
+
+                headers = {
+                    "User-Agent": client["ua"],
+                    "X-YouTube-Client-Name": client["id"],
+                    "X-YouTube-Client-Version": client["version"],
+                    "X-Origin": "https://music.youtube.com",
+                    "Referer": "https://music.youtube.com/",
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                }
+
+                print(f"[stream] innertube: trying {client['name']} for {video_id}")
+                req = urllib.request.Request(
+                    url,
+                    data=json.dumps(body).encode(),
+                    headers=headers,
+                    method="POST",
+                )
+
+                with urllib.request.urlopen(req, timeout=25) as resp:
+                    data = json.loads(resp.read().decode())
+
+                streaming_data = data.get("streamingData")
+                if not streaming_data:
+                    reason = data.get("playabilityStatus", {}).get("reason", "no streamingData")
+                    print(f"[stream] innertube {client['name']}: {reason}")
+                    continue
+
+                # Try adaptiveFormats first (best audio quality)
+                formats = streaming_data.get("adaptiveFormats", [])
+                if not formats:
+                    formats = streaming_data.get("formats", [])
+
+                if not formats:
+                    print(f"[stream] innertube {client['name']}: no formats")
+                    continue
+
+                # Prefer audio-only formats (audio/mp4, audio/webm)
+                audio_formats = [
+                    f for f in formats
+                    if f.get("mimeType", "").startswith("audio/")
+                ]
+                candidates = audio_formats or formats
+
+                # Pick highest bitrate
+                best = max(candidates, key=lambda f: f.get("bitrate", 0) or 0)
+                stream_url = best.get("url") or best.get("url")
+
+                # If direct URL is present, use it
+                if best.get("url"):
+                    print(f"[stream] innertube {client['name']}: resolved {video_id}")
+                    return best["url"]
+
+                # If no URL, check for cipher/signatureCipher (needs decoding)
+                cipher = best.get("signatureCipher") or best.get("cipher")
+                if cipher:
+                    print(f"[stream] innertube {client['name']}: needs signature decoding, skipping")
+                    continue
+
+                print(f"[stream] innertube {client['name']}: no URL in format")
+                continue
+
+            except urllib.error.HTTPError as e:
+                print(f"[stream] innertube {client['name']}: HTTP {e.code}")
+                continue
+            except Exception as e:
+                print(f"[stream] innertube {client['name']}: {e}")
+                continue
+
+        print(f"[stream] innertube: all clients failed for {video_id}")
+        return None
+
     def _try_piped(self, video_id: str) -> str | None:
-        """Resolve stream URL via Piped API (works from datacenter IPs)."""
+        """Resolve stream URL via Piped API — uses Piped's own server IPs."""
         try:
             url = f"https://pipedapi.kavin.rocks/streams/{video_id}"
             req = urllib.request.Request(url, headers={
@@ -135,7 +274,6 @@ class YTMusicClient:
                 print(f"[stream] piped: no audio streams for {video_id}")
                 return None
 
-            # Prefer m4a, then webm, then anything
             for pref in ["m4a", "webm"]:
                 for s in audio:
                     if s.get("mimeType", "").startswith(f"audio/{pref}"):
@@ -209,11 +347,17 @@ class YTMusicClient:
 
     def get_stream_url(self, video_id: str, callback: Callable):
         """Get streaming URL for a video. callback(url: str, error)
-        
-        Tries Piped API first (works from datacenter IPs since Piped
-        servers handle YouTube extraction). Falls back to yt-dlp.
+
+        Strategy (in order):
+        1. Direct InnerTube player API call (multiple client types)
+        2. Piped API (third-party YouTube proxy)
+        3. yt-dlp with android client
         """
         def fn():
+            url = self._try_innertube(video_id)
+            if url:
+                return url
+
             url = self._try_piped(video_id)
             if url:
                 return url

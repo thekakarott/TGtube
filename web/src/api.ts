@@ -21,9 +21,9 @@ export interface Track {
   duration: number;
 }
 
-async function getJSON(url: string): Promise<any> {
+async function getJSON(url: string, timeoutMs = 20000): Promise<any> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) throw new Error(await res.text().catch(() => `${res.status}`));
@@ -55,7 +55,7 @@ export const api = {
     getJSON(`${API}/watch-queue?videoId=${encodeURIComponent(videoId)}`),
 
   getStreamUrl: async (videoId: string): Promise<string> => {
-    const data = await getJSON(`${API}/stream-url?videoId=${videoId}`);
+    const data = await getJSON(`${API}/stream-url?videoId=${videoId}`, 60000);
     if (!data.url) throw new Error("No stream URL");
     return data.url;
   },

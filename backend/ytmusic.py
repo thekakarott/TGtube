@@ -146,18 +146,19 @@ class YTMusicClient:
                     ytdlp or f"{sys.executable}",
                     "-m" if not ytdlp else "",
                     "yt_dlp" if not ytdlp else "",
-                    "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    "--socket-timeout", "15",
+                    "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                    "--extractor-args", "youtube:player_client=android,web",
+                    "--socket-timeout", "30",
                     "-g",
                     "-f", "bestaudio[ext=m4a]/bestaudio",
                     video_id
                 ]
                 cmd = [x for x in cmd if x]  # Remove empty strings
                 
-                print(f"[stream] executing: {' '.join(cmd[:3])}... timeout: 30s")
+                print(f"[stream] executing: {' '.join(cmd[:3])}... timeout: 60s")
                 result = subprocess.run(
                     cmd,
-                    capture_output=True, text=True, timeout=30,
+                    capture_output=True, text=True, timeout=60,
                 )
                 
                 stdout = result.stdout.strip()

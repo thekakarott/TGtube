@@ -29,12 +29,22 @@ ytmusic = YTMusicClient()
 
 # Stream URL cache: video_id -> (url, timestamp)
 _stream_cache: dict[str, tuple[str, float]] = {}
+_stream_cache_failures: dict[str, float] = {}  # video_id -> timestamp (failed attempts)
 _stream_cache_lock = threading.Lock()
-_STREAM_CACHE_TTL = 3600  # 1 hour
-# Render free tier has 60s idle timeout, 5m request timeout for pro
+_STREAM_CACHE_TTL = 3600  # 1 hour for successful resolution
+_STREAM_FAILURE_TTL = 120  # 2 minutes — don't retry failed videos too fast
+# Render free tier has 60s idle timeout
 # Keep under 60s for free tier but give enough room for YouTube resolution
-_STREAM_TIMEOUT_SECONDS = 55  # seconds max for stream URL resolution
-_STREAM_PROXY_TIMEOUT_SECONDS = 50  # seconds for proxy stream requests
+_STREAM_TIMEOUT_SECONDS = 58  # seconds max for stream URL resolution
+_STREAM_PROXY_TIMEOUT_SECONDS = 15  # proxy uses shorter timeout — likely already failed
+
+
+def _is_failure_cached(video_id: str) -> bool:
+    with _stream_cache_lock:
+        cached = _stream_cache_failures.get(video_id)
+        if cached and time.time() - cached < _STREAM_FAILURE_TTL:
+            return True
+        return False
 
 
 def _get_stream_url(video_id: str, timeout_seconds: int = _STREAM_TIMEOUT_SECONDS, bypass_cache: bool = False) -> str | None:
@@ -74,6 +84,7 @@ def _get_stream_url(video_id: str, timeout_seconds: int = _STREAM_TIMEOUT_SECOND
     print(f"[stream] successfully resolved {video_id}")
     with _stream_cache_lock:
         _stream_cache[video_id] = (url, time.time())
+        _stream_cache_failures.pop(video_id, None)
     return url
 
 
@@ -172,6 +183,10 @@ def get_stream_url():
     if not video_id:
         return jsonify({"error": "Missing videoId"}), 400
 
+    if _is_failure_cached(video_id):
+        print(f"[stream-url] {video_id} recently failed, failing fast")
+        return jsonify({"error": "Stream recently failed, retry later"}), 429
+
     timeout_value = request.args.get("timeout", str(_STREAM_TIMEOUT_SECONDS))
     try:
         timeout_seconds = max(10, min(300, int(timeout_value)))
@@ -181,10 +196,14 @@ def get_stream_url():
     try:
         url = _get_stream_url(video_id, timeout_seconds=timeout_seconds)
         if not url:
+            with _stream_cache_lock:
+                _stream_cache_failures[video_id] = time.time()
             return jsonify({"error": "Could not get stream URL after timeout"}), 504
         return jsonify({"url": url})
     except Exception as e:
         print(f"[stream-url] exception: {e}")
+        with _stream_cache_lock:
+            _stream_cache_failures[video_id] = time.time()
         return jsonify({"error": f"Stream resolution error: {str(e)}"}), 500
 
 
@@ -199,8 +218,15 @@ def stream_audio(video_id):
         response.headers["Access-Control-Max-Age"] = "3600"
         return response, 204
 
-    url = _get_stream_url(video_id)
+    # If this video recently failed, fail fast instead of waiting again
+    if _is_failure_cached(video_id):
+        print(f"[proxy] {video_id} recently failed, failing fast")
+        return jsonify({"error": "Stream recently failed, retry later"}), 429
+
+    url = _get_stream_url(video_id, timeout_seconds=_STREAM_PROXY_TIMEOUT_SECONDS)
     if not url:
+        with _stream_cache_lock:
+            _stream_cache_failures[video_id] = time.time()
         return jsonify({"error": "Could not get stream URL"}), 500
 
     try:

@@ -118,74 +118,66 @@ class YTMusicClient:
     # ------------------------------------------------------------------
 
     def get_stream_url(self, video_id: str, callback: Callable):
-        """Get streaming URL for a video. callback(url: str, error)"""
+        """Get streaming URL for a video. callback(url: str, error)
+        
+        Uses yt-dlp directly (skips ytmusicapi.get_song() which hangs
+        with no timeout when YouTube blocks datacenter IPs).
+        Uses Android player client to bypass datacenter restrictions.
+        """
         def fn():
             try:
-                # Try ytmusicapi first (may not return URLs on newer YouTube)
-                print(f"[stream] trying ytmusicapi.get_song({video_id})")
-                song_info = self._yt.get_song(video_id)
-                if song_info and 'streamingData' in song_info:
-                    streaming_data = song_info['streamingData']
-                    formats = streaming_data.get('formats', [])
-                    if formats:
-                        best_format = max(formats, key=lambda f: f.get('bitrate', 0))
-                        url = best_format.get('url')
-                        if url:
-                            print(f"[stream] got URL from ytmusicapi for {video_id}")
-                            return url
-                    print(f"[stream] ytmusicapi: streamingData exists but no formats")
-                else:
-                    print(f"[stream] ytmusicapi: no streamingData in response")
-
-                # Fallback: use yt-dlp to extract direct audio URL
                 import sys
+
                 ytdlp_paths = ["yt-dlp", "/home/linuxbrew/.linuxbrew/bin/yt-dlp", f"{sys.prefix}/bin/yt-dlp"]
                 ytdlp = next((p for p in ytdlp_paths if shutil.which(p)), None)
-                
+
                 cmd = [
                     ytdlp or f"{sys.executable}",
                     "-m" if not ytdlp else "",
                     "yt_dlp" if not ytdlp else "",
                     "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                    "--extractor-args", "youtube:player_client=android,web",
-                    "--socket-timeout", "30",
+                    "--extractor-args", "youtube:player_client=android",
+                    "--socket-timeout", "20",
+                    "--verbose",
                     "-g",
                     "-f", "bestaudio[ext=m4a]/bestaudio",
                     video_id
                 ]
-                cmd = [x for x in cmd if x]  # Remove empty strings
-                
-                print(f"[stream] executing: {' '.join(cmd[:3])}... timeout: 60s")
+                cmd = [x for x in cmd if x]
+
+                print(f"[stream] resolving {video_id} via yt-dlp (android client)")
                 result = subprocess.run(
                     cmd,
-                    capture_output=True, text=True, timeout=60,
+                    capture_output=True, text=True, timeout=50,
                 )
-                
+
                 stdout = result.stdout.strip()
                 stderr = result.stderr.strip()
-                
+
                 print(f"[stream] exit code: {result.returncode}, has stdout: {bool(stdout)}")
-                
+                if stderr:
+                    for line in stderr.splitlines()[-5:]:
+                        print(f"[stream] yt-dlp: {line}")
+
                 if result.returncode != 0:
-                    # Check if it's a specific error
                     if "Sign in" in stderr or "age-restricted" in stderr.lower():
                         raise RuntimeError("Video is age-restricted or requires sign-in")
                     if "not available" in stderr.lower():
                         raise RuntimeError("Video not available in this region")
                     error_msg = stderr or stdout or "yt-dlp failed"
-                    raise RuntimeError(f"yt-dlp error: {error_msg[:150]}")
+                    raise RuntimeError(f"yt-dlp error: {error_msg[:300]}")
 
                 if stdout:
-                    print(f"[stream] successfully resolved {video_id}")
+                    print(f"[stream] resolved {video_id}")
                     return stdout
 
                 raise RuntimeError("yt-dlp returned empty output")
             except subprocess.TimeoutExpired:
-                print(f"[ytmusic] yt-dlp timeout for {video_id}")
+                print(f"[stream] yt-dlp timeout for {video_id}")
                 raise RuntimeError("Stream extraction timeout - YouTube may be rate-limiting")
             except Exception as e:
                 error_str = str(e)
-                print(f"[ytmusic] get_stream_url error for {video_id}: {error_str[:150]}")
+                print(f"[stream] error for {video_id}: {error_str[:200]}")
                 raise RuntimeError(error_str) from e
         self._run_async(fn, callback)
     # ------------------------------------------------------------------

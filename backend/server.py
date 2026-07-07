@@ -31,9 +31,10 @@ ytmusic = YTMusicClient()
 _stream_cache: dict[str, tuple[str, float]] = {}
 _stream_cache_lock = threading.Lock()
 _STREAM_CACHE_TTL = 3600  # 1 hour
-# Render has ~60s infrastructure timeout, so keep our timeout shorter
-_STREAM_TIMEOUT_SECONDS = 45  # 45 seconds max for stream URL resolution
-_STREAM_PROXY_TIMEOUT_SECONDS = 30  # 30 seconds for proxy stream requests
+# Render free tier has 60s idle timeout, 5m request timeout for pro
+# Keep under 60s for free tier but give enough room for YouTube resolution
+_STREAM_TIMEOUT_SECONDS = 55  # seconds max for stream URL resolution
+_STREAM_PROXY_TIMEOUT_SECONDS = 50  # seconds for proxy stream requests
 
 
 def _get_stream_url(video_id: str, timeout_seconds: int = _STREAM_TIMEOUT_SECONDS, bypass_cache: bool = False) -> str | None:
